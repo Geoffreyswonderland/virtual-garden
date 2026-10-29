@@ -522,6 +522,8 @@ window.addEventListener('pointerdown', e => { press.down = true; press.x = e.cli
 window.addEventListener('pointermove', e => { press.x = e.clientX; press.y = e.clientY; }, true);
 window.addEventListener('pointerup', () => { press.down = false; }, true);
 window.addEventListener('pointercancel', () => { press.down = false; }, true);
+window.addEventListener('blur', () => { press.down = false; });
+document.addEventListener('visibilitychange', () => { press.down = false; });
 const dropRing = new THREE.Mesh(new THREE.RingGeometry(0.2, 0.26, 32), new THREE.MeshBasicMaterial({ color: 0xbff0c8, transparent: true, opacity: 0.85, depthWrite: false, side: THREE.DoubleSide }));
 dropRing.rotation.x = -Math.PI / 2;
 dropRing.visible = false;
@@ -604,7 +606,7 @@ function placeWeed(w, src) {
       dropRing.visible = false;
       w.scale.setScalar(0.45);
       await hold(w, V(0.3, -0.3, -0.62), [0.3, 0.4, 0.6], 0.4);
-      setTask('理荒穢', '轉身找到竹簍，點一下竹簍把草丟進去');
+      setTask('理荒穢', '轉身找到竹簍，點竹簍、按右下角「丟進竹簍」或空白鍵，把草丟進去');
       showBasketGuide(true);
       carryTap = (cx, cy) => {
         const sp = spotAt(cx, cy);
@@ -614,7 +616,7 @@ function placeWeed(w, src) {
         if (!sp.far) { toast('草要放進竹簍裡'); return true; }
         return false;
       };
-      offer([{ id: 'basket', obj: parts.weedBasket, pos: parts.weedBasket.position, reach: 3.2, label: '丟進竹簍' }])
+      offer([{ id: 'basket', obj: parts.weedBasket, pos: parts.weedBasket.position, reach: DROP_REACH, label: '丟進竹簍' }])
         .then(() => finish({ p: parts.weedBasket.position.clone(), basket: true }, 'button'));
     };
     // --- drag mode: the weed follows the finger until it is let go
@@ -636,7 +638,8 @@ function placeWeed(w, src) {
       dropRing.material.color.set(sp.ok ? 0xbff0c8 : 0xf0a08f);
       dropRing.visible = true;
     };
-    if (press.down && src !== 'key') {
+    // dragging only when the weed itself was pressed on screen; the button and keys keep it in hand
+    if (press.down && src === 'touch') {
       controls.st.lookLock = true;
       setTask('理荒穢', '別放手，拖到竹簍上再放開');
       showBasketGuide(true);
