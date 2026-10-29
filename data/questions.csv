@@ -1,0 +1,7 @@
+id,phase,text,subscale,min,max,min_label,max_label
+relax_pre,pre,此刻你有多放鬆？,放鬆自評,0,10,完全不放鬆,非常放鬆
+relax_post,post,此刻你有多放鬆？,放鬆自評,0,10,完全不放鬆,非常放鬆
+prs_away,post,剛才的體驗讓我暫時遠離了日常的壓力。,遠離（示意）,0,10,完全不同意,完全同意
+prs_fascination,post,這個庭園裡有吸引我注意的事物。,吸引（示意）,0,10,完全不同意,完全同意
+prs_extent,post,庭園裡的一切彼此協調，像是一個完整的世界。,廣延（示意）,0,10,完全不同意,完全同意
+prs_compatibility,post,在這裡做的事符合我想做的事。,相容（示意）,0,10,完全不同意,完全同意
