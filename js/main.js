@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { parseCSV } from './csv.js?v=16';
 import { createWorld } from './world/index.js?v=26';
-import { createControls } from './controls.js?v=29';
+import { createControls } from './controls.js?v=30';
 import { audioInit, setScape, oneShot, waterSound, toggleSound } from './audio.js?v=16';
 import { L, PATHS, APPROACH, EYE } from './world/layout.js?v=18';
 import { pathDist } from './world/grass.js?v=21';
@@ -383,7 +383,7 @@ function setActLabel(text) {
   u.t.needsUpdate = true;
 }
 function updateRings(t) {
-  const list = controls.enabled ? offers.filter(o => !o.global && o.ring !== false && o.pos) : [];
+  const list = controls.enabled ? offers.filter(o => o.ring !== false && o.pos) : [];
   while (spotRings.length < list.length) {
     const m = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0xffe2a0, transparent: true, opacity: 0.7, depthWrite: false, side: THREE.DoubleSide }));
     m.rotation.x = -Math.PI / 2;
@@ -914,6 +914,7 @@ const BEHAVIOURS = {
         await tw(0.4, q => { b.position.set(lerp(from.x, to.x, q), lerp(from.y, to.y, q * q) + Math.sin(q * Math.PI) * 0.06, lerp(from.z, to.z, q)); }, q => q);
       }
       controls.st.crouchTarget = 0;
+      controls.faceTo(sp.pos.x + (sp.pos.x - controls.st.x) * 3, 1.0, sp.pos.z + (sp.pos.z - controls.st.z) * 3, 0.6);   // stand up and look ahead again
     }
     await putDown(parts.pouch, pouchHome, [0, 0, 0]);
     setHeld('鋤頭');
@@ -949,7 +950,8 @@ const BEHAVIOURS = {
     step(5);
     coach('hoe_away', '鋤頭插在哪裡', ['就在剛蓋好的土堆旁邊，地上有發亮的圈圈和光柱', '走近到圈圈變綠', '按右下角的「插好鋤頭」或空白鍵，或點一下圈圈']);
     const hoeMark = mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.5, 10), new THREE.MeshBasicMaterial({ visible: false }), hoeSpot.x, 0.25, hoeSpot.z, scene);
-    await offer([{ id: 'hoe_away', obj: hoeMark, pos: hoeSpot, reach: 2.4, label: '插好鋤頭' }]);
+    // works from anywhere nearby: the button is always shown in this step, the ring just shows where it will stand
+    await offer([{ id: 'hoe_away', obj: hoeMark, pos: hoeSpot, global: true, reach: 2.4, label: '插好鋤頭' }]);
     scene.remove(hoeMark);
     setTarget(null);
     hooks.delete(hoeHook);

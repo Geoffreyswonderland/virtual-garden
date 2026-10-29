@@ -174,7 +174,7 @@ export function createControls({ camera, canvas, colliders, isWalkable, onTap, o
   /** turn the view gently towards a point */
   function faceTo(x, y, z, dur = 1.2) {
     const yaw = Math.atan2(-(x - st.x), -(z - st.z));
-    const pitch = Math.atan2(y - EYE, Math.hypot(x - st.x, z - st.z));
+    const pitch = Math.atan2(y - (EYE + (st.crouchTarget || 0)), Math.hypot(x - st.x, z - st.z));
     let dy = (yaw - st.yaw) % (Math.PI * 2);
     if (dy > Math.PI) dy -= Math.PI * 2;
     if (dy < -Math.PI) dy += Math.PI * 2;
@@ -220,6 +220,8 @@ export function createControls({ camera, canvas, colliders, isWalkable, onTap, o
       tvx = (-s * iy + c * ix) * SPEED;
       tvz = (-c * iy - s * ix) * SPEED;
     }
+    // when walking with the eyes on the ground, the gaze drifts back up to the horizon
+    if (!st.turn && !st.lookLock && Math.hypot(st.vx, st.vz) > 0.3 && st.pitch < -0.45) st.pitch += (-0.2 - st.pitch) * Math.min(1, dt * 1.6);
     const speeding = tvx * tvx + tvz * tvz > st.vx * st.vx + st.vz * st.vz;
     const k = 1 - Math.exp(-dt * (speeding ? 9 : 14));
     st.vx += (tvx - st.vx) * k;
