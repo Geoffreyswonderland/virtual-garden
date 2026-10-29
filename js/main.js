@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { parseCSV } from './csv.js?v=16';
 import { createWorld } from './world/index.js?v=16';
-import { createControls } from './controls.js?v=16';
+import { createControls } from './controls.js?v=17';
 import { audioInit, setScape, oneShot, waterSound, toggleSound } from './audio.js?v=16';
 import { L, PATHS, APPROACH, EYE } from './world/layout.js';
 import { pathDist } from './world/grass.js';

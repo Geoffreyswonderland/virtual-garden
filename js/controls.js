@@ -6,8 +6,8 @@ import { EYE, PATHS, APPROACH } from './world/layout.js';
      on touch screens it appears wherever the left thumb lands
    - keys: W/S or ↑/↓ walk, A/D or ←/→ turn, Q/E sidestep, Shift to hurry
    - tap the ground to walk there; tap a thing to use it
-   - drag to look around (mouse: the view follows the hand; touch: the
-     scenery follows the finger, as in street-view apps)
+   - drag to look around: the scenery follows the hand (mouse or finger),
+     as in street-view maps
    No head bob, eased starts and stops, to keep motion sickness low. */
 
 const SPEED = 1.8;          // metres per second at full stick
@@ -108,9 +108,10 @@ export function createControls({ camera, canvas, colliders, isWalkable, onTap, o
     l.x = e.clientX; l.y = e.clientY;
     canvas.classList.add('dragging');
     const touch = e.pointerType === 'touch';
-    const k = touch ? 0.0055 : 0.005, sgn = touch ? 1 : -1;
-    st.yaw += dx * k * sgn;
-    st.pitch = THREE.MathUtils.clamp(st.pitch + dy * k * sgn, -1.1, 0.6);
+    // grab the scenery and pull it, as in street-view maps: drag right and the view swings left
+    const k = touch ? 0.0055 : 0.005;
+    st.yaw += dx * k;
+    st.pitch = THREE.MathUtils.clamp(st.pitch + dy * k, -1.1, 0.6);
     st.turn = null;
   });
   const lookEnd = e => {
