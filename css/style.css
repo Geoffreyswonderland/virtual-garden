@@ -94,11 +94,11 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--gold); outl
 .task-steps li.done { opacity: 0.55; text-decoration: line-through; }
 .task-steps li.now { color: var(--paper); border-color: var(--gold); background: rgba(210, 183, 126, 0.16); }
 .task-steps li.now b { background: var(--gold); color: #1b1f1c; }
-#coach { position: absolute; left: 50%; bottom: calc(var(--safe-b) + 24px); transform: translateX(-50%); width: min(460px, calc(100% - 300px)); min-width: 280px; padding: 16px 20px 14px; animation: rise 0.4s ease; }
+#coach { position: absolute; left: 50%; top: calc(var(--safe-t) + 150px); transform: translateX(-50%); width: min(440px, calc(100% - 140px)); min-width: 280px; padding: 16px 20px 14px; animation: rise 0.4s ease; }
 #coach .coach-title { margin: 0 0 4px; font-family: var(--serif); font-weight: 900; font-size: 17px; color: var(--gold); letter-spacing: 0.1em; }
 #coach ol { margin: 0 0 10px; padding-left: 1.3em; font-size: 15px; line-height: 1.7; }
 #coach .btn-ghost { padding: 4px 16px; font-size: 14px; letter-spacing: 0.1em; float: right; }
-@media (max-width: 760px) { #coach { bottom: auto; top: calc(var(--safe-t) + 96px); width: calc(100% - 24px); } }
+@media (max-width: 760px) { #coach { top: calc(var(--safe-t) + 96px); width: calc(100% - 24px); } }
 
 /* ---------- dialogue ---------- */
 #dlg { position: fixed; left: 50%; bottom: calc(var(--safe-b) + 20px); transform: translateX(-50%); width: min(880px, calc(100% - 32px)); min-height: 170px; padding: 34px 34px 22px; display: flex; flex-direction: column; gap: 12px; animation: rise 0.45s ease; }

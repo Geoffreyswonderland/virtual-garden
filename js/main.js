@@ -362,7 +362,7 @@ const actLabel = (() => {
   const c = document.createElement('canvas'); c.width = 256; c.height = 96;
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
   const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, transparent: true, sizeAttenuation: false }));
-  sp.scale.set(0.1, 0.0375, 1);
+  sp.scale.set(0.17, 0.064, 1);
   sp.renderOrder = 20;
   sp.visible = false;
   sp.userData = { c, t, text: '' };
