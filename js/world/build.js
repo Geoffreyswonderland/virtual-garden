@@ -301,18 +301,21 @@ function vegBed(scene) {
     scene.add(wg);
     return wg;
   });
-  // a bamboo basket at the end of the bed for the pulled weeds
-  const bx = x + w / 2 + 0.25, bz = z + d / 2 + 0.45;
+  // a large bamboo basket by the path, at the near end of the bed, for the pulled weeds
+  const bx = x + w / 2 + 0.55, bz = z - d / 2 - 0.15;
   const basket = new THREE.Group();
-  const weave = std(0xb39a66, { map: tex('thatch.jpg'), roughness: 1, side: THREE.DoubleSide });
-  mesh(new THREE.CylinderGeometry(0.3, 0.22, 0.34, 20, 1, true), weave, 0, 0.17, 0, basket);
-  mesh(new THREE.CircleGeometry(0.22, 18), weave, 0, 0.01, 0, basket).rotation.x = -Math.PI / 2;
-  const rim = mesh(new THREE.TorusGeometry(0.3, 0.018, 6, 24), std(0x8a6f45), 0, 0.34, 0, basket);
+  const weave = std(0xc2a56c, { map: tex('thatch.jpg'), roughness: 1, side: THREE.DoubleSide });
+  mesh(new THREE.CylinderGeometry(0.42, 0.3, 0.52, 24, 1, true), weave, 0, 0.26, 0, basket);
+  mesh(new THREE.CircleGeometry(0.3, 20), weave, 0, 0.01, 0, basket).rotation.x = -Math.PI / 2;
+  const rim = mesh(new THREE.TorusGeometry(0.42, 0.025, 8, 28), std(0x8a6f45), 0, 0.52, 0, basket);
   rim.rotation.x = Math.PI / 2;
+  [0.14, 0.36].forEach(y => { const b = mesh(new THREE.TorusGeometry(0.3 + y * 0.23, 0.015, 6, 28), std(0x9a7d4e), 0, y, 0, basket); b.rotation.x = Math.PI / 2; });
+  // an invisible, generous volume so it is easy to tap
+  mesh(new THREE.CylinderGeometry(0.6, 0.6, 1.1, 12), new THREE.MeshBasicMaterial({ visible: false }), 0, 0.5, 0, basket, { cast: false, receive: false });
   basket.position.set(bx, 0, bz);
   scene.add(basket);
-  circleColliders.push([bx, bz, 0.35]);
-  contactShadow(scene, bx, bz, 0.45, 0.6);
+  circleColliders.push([bx, bz, 0.45]);
+  contactShadow(scene, bx, bz, 0.65, 0.6);
   return { weeds, weedBasket: basket };
 }
 

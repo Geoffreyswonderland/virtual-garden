@@ -1,8 +1,8 @@
 import * as THREE from 'three';
-import { parseCSV } from './csv.js?v=15';
-import { createWorld } from './world/index.js?v=15';
-import { createControls } from './controls.js?v=15';
-import { audioInit, setScape, oneShot, waterSound, toggleSound } from './audio.js?v=15';
+import { parseCSV } from './csv.js?v=16';
+import { createWorld } from './world/index.js?v=16';
+import { createControls } from './controls.js?v=16';
+import { audioInit, setScape, oneShot, waterSound, toggleSound } from './audio.js?v=16';
 import { L, PATHS, APPROACH, EYE } from './world/layout.js';
 import { pathDist } from './world/grass.js';
 
@@ -531,15 +531,37 @@ function inBed(x, z) { const b = L.veg; return Math.abs(x - b.x) < b.w / 2 + 0.2
 function spotAt(cx, cy) {
   const r = canvas.getBoundingClientRect();
   raycaster.setFromCamera(new THREE.Vector2(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1), camera);
-  if (raycaster.intersectObject(parts.weedBasket, true).length) return { p: parts.weedBasket.position.clone(), basket: true, ok: flat(parts.weedBasket.position, controls.st.x, controls.st.z) < DROP_REACH };
+  const bp = parts.weedBasket.position;
+  const ok = flat(bp, controls.st.x, controls.st.z) < DROP_REACH;
+  if (raycaster.intersectObject(parts.weedBasket, true).length) return { p: bp.clone(), basket: true, ok };
   if (!raycaster.ray.intersectPlane(groundPlane, groundHit)) return null;
   const p = groundHit.clone();
-  const d = flat(p, controls.st.x, controls.st.z);
-  const near = Math.hypot(p.x - parts.weedBasket.position.x, p.z - parts.weedBasket.position.z) < 0.4;
-  if (near) return { p: parts.weedBasket.position.clone(), basket: true, ok: d < DROP_REACH };
-  return { p, basket: false, ok: d < DROP_REACH && !inBed(p.x, p.z), far: d >= DROP_REACH, bed: inBed(p.x, p.z) };
+  if (Math.hypot(p.x - bp.x, p.z - bp.z) < 0.7) return { p: bp.clone(), basket: true, ok };
+  return { p, basket: false, ok: false, far: flat(p, controls.st.x, controls.st.z) >= DROP_REACH };
 }
 let basketCount = 0;
+const basketLabel = (() => {
+  const c = document.createElement('canvas'); c.width = 256; c.height = 112;
+  const g = c.getContext('2d');
+  g.fillStyle = 'rgba(20,25,22,.82)'; g.strokeStyle = '#d2b77e'; g.lineWidth = 4;
+  g.beginPath(); g.roundRect(8, 8, 240, 72, 12); g.fill(); g.stroke();
+  g.beginPath(); g.moveTo(112, 80); g.lineTo(128, 104); g.lineTo(144, 80); g.fill();
+  g.fillStyle = '#f1e9d8'; g.font = '900 44px "Noto Serif TC", serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText('竹簍', 128, 46);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, transparent: true }));
+  sp.scale.set(0.9, 0.39, 1);
+  sp.renderOrder = 20;
+  sp.visible = false;
+  scene.add(sp);
+  return sp;
+})();
+hooks.add((dt, t) => { if (basketLabel.visible) basketLabel.position.set(parts.weedBasket.position.x, 0.95 + Math.sin(t * 2.5) * 0.05, parts.weedBasket.position.z); });
+function showBasketGuide(on) {
+  basketLabel.visible = on || state.basketHint;
+  if (on) { setTarget(parts.weedBasket.position.clone().setY(0.5), null); target.approach = approachPoint({ pos: parts.weedBasket.position, reach: 1.6 }) || target.approach; }
+  else setTarget(null);
+}
 async function settleWeed(w, spot) {
   scene.attach(w);
   const from = w.position.clone(), r0 = w.rotation.clone();
@@ -565,6 +587,7 @@ function placeWeed(w, src) {
       if (done) return;
       done = true;
       dropRing.visible = false;
+      showBasketGuide(false);
       carryTap = null;
       hooks.delete(follow);
       controls.st.lookLock = false;
@@ -579,14 +602,17 @@ function placeWeed(w, src) {
       hooks.delete(follow);
       controls.st.lookLock = false;
       dropRing.visible = false;
-      await hold(w, V(0.32, -0.36, -0.62), [0.25, 0.4, 0.5], 0.4);
-      setTask('理荒穢', '把草放到一旁：點菜圃外的地面，或點竹簍');
+      w.scale.setScalar(0.45);
+      await hold(w, V(0.3, -0.3, -0.62), [0.3, 0.4, 0.6], 0.4);
+      setTask('理荒穢', '把草放進竹簍：走到竹簍旁，點竹簍或按「放進竹簍」');
+      showBasketGuide(true);
       carryTap = (cx, cy) => {
         const sp = spotAt(cx, cy);
         if (!sp) return false;
-        if (sp.ok) { finish(sp, 'tap'); return true; }
-        if (sp.bed && !sp.far) { toast('不要放回菜圃裡'); return true; }
-        return false;   // far away: let the tap walk there, still carrying
+        if (sp.basket && sp.ok) { finish(sp, 'tap'); return true; }
+        if (sp.basket) return false;            // basket too far: the tap walks over, still carrying
+        if (!sp.far) { toast('草要放進竹簍裡'); return true; }
+        return false;
       };
       offer([{ id: 'basket', obj: parts.weedBasket, pos: parts.weedBasket.position, reach: 2.0, label: '放進竹簍' }])
         .then(() => finish({ p: parts.weedBasket.position.clone(), basket: true }, 'button'));
@@ -595,22 +621,25 @@ function placeWeed(w, src) {
     let last = null;
     const follow = () => {
       if (!press.down) {
-        if (last && last.ok) finish(last, 'drag');
-        else { if (last && last.bed) toast('不要放回菜圃裡，放到外面或竹簍'); handMode(); }
+        if (last && last.basket && last.ok) finish(last, 'drag');
+        else { toast('草要放進竹簍裡'); handMode(); }
         return;
       }
       const sp = spotAt(press.x, press.y);
       if (!sp) return;
       last = sp;
-      const tgt = sp.ok ? sp.p : V(lerp(controls.st.x, sp.p.x, 0.6), 0, lerp(controls.st.z, sp.p.z, 0.6));
-      w.position.lerp(V(tgt.x, (sp.basket ? 0.55 : 0.32) + Math.sin(performance.now() / 180) * 0.015, tgt.z), 0.25);
-      dropRing.position.set(sp.p.x, (sp.basket ? 0.36 : 0.03), sp.p.z);
+      // the weed stays within arm's length; it only goes over the basket if the basket is close
+      const d = flat(sp.p, controls.st.x, controls.st.z), k = Math.min(1, 1.6 / Math.max(d, 0.01));
+      const tgt = sp.basket && sp.ok ? sp.p : V(lerp(controls.st.x, sp.p.x, k), 0, lerp(controls.st.z, sp.p.z, k));
+      w.position.lerp(V(tgt.x, (sp.basket ? 0.75 : 0.55) + Math.sin(performance.now() / 180) * 0.015, tgt.z), 0.25);
+      dropRing.position.set(sp.p.x, (sp.basket ? 0.56 : 0.03), sp.p.z);
       dropRing.material.color.set(sp.ok ? 0xbff0c8 : 0xf0a08f);
       dropRing.visible = true;
     };
     if (press.down && src !== 'key') {
       controls.st.lookLock = true;
-      setTask('理荒穢', '別放手，拖到菜圃外面或竹簍再放開');
+      setTask('理荒穢', '別放手，拖到竹簍上再放開');
+      showBasketGuide(true);
       hooks.add(follow);
     } else handMode();
   });
@@ -639,7 +668,10 @@ const BEHAVIOURS = {
     walkMode(true);
     let pulled = 0;
     const total = parts.weeds.length;
-    const basket = parts.weedBasket.position;
+    // point out the basket before anything else
+    state.basketHint = true;
+    basketLabel.visible = true;
+    toast('菜圃旁的竹簍，是放拔起來的草的地方', 4000);
     while (pulled < total) {
       setTask(a.name, `${a.task}（${pulled} / ${total}）　按住草，把它連根拔起`);
       const left = parts.weeds.filter(w => !w.userData.pulled);
@@ -663,9 +695,12 @@ const BEHAVIOURS = {
       const where = await placeWeed(w, holdSt.lastSrc);
       pulled++;
       log('weed_drop', String(item.tag), where);
+      if (pulled < total) { setTarget(center, 'veg'); beacon.visible = false; }
     }
     setTask(a.name, `${a.task}（${total} / ${total}）`);
     setTarget(null);
+    state.basketHint = false;
+    basketLabel.visible = false;
     await wait(1500);
   },
 
