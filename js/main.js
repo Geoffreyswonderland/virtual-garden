@@ -466,7 +466,9 @@ function updateHold(dt, t) {
   else if (it.decay !== false) holdSt.p = Math.max(0, holdSt.p - dt * 1.8);
   it.onProgress && it.onProgress(holdSt.p, t);
   actEl.style.setProperty('--p', near === it ? holdSt.p : 0);
+  showProgress(it, holdSt.p);
   if (holdSt.p >= 1) {
+    flashDone(it);
     holdSt.active = false; holdSt.item = null; holdSt.p = 0;
     controls.st.lookLock = false;
     actEl.classList.remove('holding');
@@ -477,6 +479,47 @@ function updateHold(dt, t) {
   } else if (!holdSt.active && holdSt.p === 0 && it.decay !== false) holdSt.item = null;
 }
 hooks.add(updateHold);
+
+/* ---------- progress: a bar on screen and an arc around the spot on the ground ---------- */
+const progEl = $('#progress');
+const arcMat = new THREE.ShaderMaterial({
+  transparent: true, depthWrite: false, side: THREE.DoubleSide,
+  uniforms: { p: { value: 0 } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: `uniform float p; varying vec2 vUv;
+    void main(){ vec2 d = vUv - 0.5; float a = fract(atan(d.x, d.y) / 6.2831853 + 1.0);
+      vec3 col = a < p ? vec3(0.75, 0.95, 0.78) : vec3(1.0, 1.0, 1.0);
+      gl_FragColor = vec4(col, a < p ? 0.95 : 0.18); }`,
+});
+const arc = new THREE.Mesh(new THREE.RingGeometry(0.28, 0.36, 64), arcMat);
+arc.rotation.x = -Math.PI / 2;
+arc.renderOrder = 6;
+arc.visible = false;
+scene.add(arc);
+let doneTimer = 0;
+function showProgress(it, p) {
+  const show = p > 0.001 || holdSt.active;
+  progEl.hidden = !show && !progEl.classList.contains('done');
+  arc.visible = show && !it.global && !!it.pos;
+  if (!show) return;
+  arcMat.uniforms.p.value = p;
+  if (it.pos) arc.position.set(it.pos.x, (it.pos.y > 0.05 ? it.pos.y : 0) + 0.025, it.pos.z);
+  progEl.classList.remove('done');
+  clearTimeout(doneTimer);
+  $('#progress-label').textContent = it.label.replace('按住', '');
+  $('#progress-fill').style.width = `${Math.round(p * 100)}%`;
+  $('#progress-pct').textContent = holdSt.active ? `${Math.round(p * 100)}%` : `${Math.round(p * 100)}%　放開了，再按住可以接著做`;
+}
+function flashDone(it) {
+  arc.visible = false;
+  $('#progress-label').textContent = it.label.replace('按住', '');
+  $('#progress-fill').style.width = '100%';
+  $('#progress-pct').textContent = '完成！';
+  progEl.classList.add('done');
+  progEl.hidden = false;
+  clearTimeout(doneTimer);
+  doneTimer = setTimeout(() => { progEl.hidden = true; progEl.classList.remove('done'); }, 1200);
+}
 actEl.addEventListener('pointerdown', e => { e.preventDefault(); if (near) startHold(near, 'button'); });
 ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => actEl.addEventListener(ev, endHold));
 actEl.addEventListener('keydown', e => { if ((e.code === 'Enter' || e.code === 'Space') && near) { e.preventDefault(); startHold(near, 'key'); } });

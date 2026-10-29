@@ -87,6 +87,14 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--gold); outl
 #toast { position: absolute; left: 50%; top: 32%; transform: translate(-50%, 0); margin: 0; padding: 8px 18px; background: rgba(18, 23, 21, 0.85); border: 1px solid var(--line); font-size: 16px; opacity: 0; transition: opacity 0.4s; pointer-events: none; white-space: nowrap; }
 #toast.on { opacity: 1; }
 
+/* progress while holding an action */
+#progress { position: absolute; left: 50%; bottom: calc(var(--safe-b) + 150px); transform: translateX(-50%); min-width: 260px; padding: 10px 18px 8px; background: rgba(18, 23, 21, 0.86); border: 1px solid var(--line); text-align: center; pointer-events: none; }
+#progress-label { font-family: var(--serif); font-weight: 900; font-size: 17px; letter-spacing: 0.2em; }
+#progress .bar { height: 10px; margin: 6px 0 4px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.06); }
+#progress-fill { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #7fae96, #cfe9b8); transition: width 0.08s linear; }
+#progress-pct { font-size: 13px; color: var(--paper-soft); }
+#progress.done #progress-pct { color: #cfe9b8; font-weight: 700; font-size: 15px; }
+
 /* step chips and the how-to card */
 .task-steps { list-style: none; margin: 4px 0 8px; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 6px; font-size: 12.5px; color: var(--paper-soft); }
 .task-steps li { display: flex; align-items: center; gap: 4px; padding: 1px 7px 1px 2px; border: 1px solid rgba(210, 183, 126, 0.25); border-radius: 999px; }

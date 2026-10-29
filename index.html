@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&family=Noto+Serif+TC:wght@600;900&display=swap">
-<link rel="stylesheet" href="css/style.css?v=24">
+<link rel="stylesheet" href="css/style.css?v=27">
 <script type="importmap">
 { "imports": {
   "three": "./lib/three/three.module.js",
@@ -49,6 +49,7 @@
   <button id="act" type="button" hidden></button>
   <div id="edge" hidden><span class="arrow"></span><span id="edge-dist"></span></div>
   <p id="toast" role="status"></p>
+  <div id="progress" hidden aria-live="polite"><span id="progress-label"></span><div class="bar"><i id="progress-fill"></i></div><span id="progress-pct"></span></div>
   <section id="coach" class="panel" role="note" hidden></section>
 </div>
 
@@ -114,6 +115,6 @@
   </div>
 </section>
 
-<script type="module" src="js/main.js?v=26"></script>
+<script type="module" src="js/main.js?v=27"></script>
 </body>
 </html>
