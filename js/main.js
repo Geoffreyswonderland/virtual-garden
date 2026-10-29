@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { parseCSV } from './csv.js?v=4';
-import { createGarden } from './garden.js?v=4';
+import { parseCSV } from './csv.js?v=5';
+import { createGarden } from './garden.js?v=5';
 
 /* =====================================================================
    STATE AND EVENT LOG
@@ -251,14 +251,14 @@ const pitchTo = v => Math.atan2(v.y - camera.position.y, Math.hypot(v.x - camera
 
 const BEHAVIOURS = {
   async seedling(a) {
-    await lookTo(-0.12, -0.5);
+    await lookTo(yawTo(new THREE.Vector3((standL.x + BED.x) / 2, 0, (standL.z + BED.z) / 2)), -0.55);
     await waitTap(a.id, [seedling], new THREE.Vector3(standL.x, 0.75, standL.z));
     const from = seedling.position.clone(), to = new THREE.Vector3(BED.x, BED.y + 0.08, BED.z);
     await tw(1.6, k => { seedling.position.lerpVectors(from, to, k); seedling.position.y += Math.sin(k * Math.PI) * 0.35; });
     await tw(0.5, k => { seedling.position.y = lerp(to.y, BED.y - 0.02, k); });
   },
   async can(a) {
-    await lookTo(0.12, -0.5);
+    await lookTo(yawTo(new THREE.Vector3((standR.x + BED.x) / 2, 0, (standR.z + BED.z) / 2)), -0.55);
     await waitTap(a.id, [can], new THREE.Vector3(standR.x, 0.78, standR.z));
     const from = can.position.clone(), over = new THREE.Vector3(BED.x - 0.32, 0.72, BED.z);
     const r0 = can.rotation.y;

@@ -321,8 +321,8 @@ export function createGarden(canvas) {
     });
     const head = new THREE.Group();
     head.position.y = h + 0.02;
-    const petal = std(new THREE.Color().setHSL(hue, 0.75, light), { roughness: 0.7 });
-    const inner = std(new THREE.Color().setHSL(hue - 0.02, 0.8, light - 0.08), { roughness: 0.7 });
+    const petal = std(new THREE.Color().setHSL(hue, 0.9, light), { roughness: 0.7 });
+    const inner = std(new THREE.Color().setHSL(hue - 0.025, 0.9, light - 0.1), { roughness: 0.7 });
     add(new THREE.SphereGeometry(0.035, 10, 8), std(0xb8792a), 0, 0.012, 0, head, true, false);
     [[18, 0.085, 0.3, petal, 1.25], [12, 0.055, 0.8, inner, 0.9]].forEach(([n, rad, tilt, m, len]) => {
       for (let i = 0; i < n; i++) {
@@ -339,7 +339,7 @@ export function createGarden(canvas) {
     fence.add(f);
     flowers.push({ g: f, head, phase: srange(0, 6) });
   }
-  [0.15, -0.3, -0.72, -1.1, -1.55, -1.95, -2.4, -2.85, -3.3].forEach((z, i) => chrysanthemum(z, [0.13, 0.12, 0.11, 0.14][i % 4], [0.62, 0.7, 0.58, 0.75][i % 4]));
+  [0.15, -0.3, -0.72, -1.1, -1.55, -1.95, -2.4, -2.85, -3.3].forEach((z, i) => chrysanthemum(z, [0.12, 0.11, 0.1, 0.13][i % 4], [0.5, 0.56, 0.46, 0.6][i % 4]));
 
   /* ---------- raised bed: wood planks and soil ---------- */
   const woodTex = canvasTex(256, (x, s) => {
