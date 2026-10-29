@@ -95,7 +95,7 @@ function foliageMaterial(map, { alphaTest = 0.45, tint = 0xffffff, hang = false 
         #ifdef USE_INSTANCING
           float ph = dot(instanceMatrix[3].xyz, vec3(0.7, 0.3, 0.5));
           ${hang
-            ? 'float k = pow(1.0 - uv.y, 1.6); transformed.x += (sin(uTime * 1.1 + ph) * 0.18 + sin(uTime * 2.3 + ph * 2.0) * 0.05) * k; transformed.z += cos(uTime * 0.9 + ph) * 0.12 * k;'
+            ? 'float k = pow(clamp(1.0 - uv.y, 0.0, 1.0), 1.6); transformed.x += (sin(uTime * 1.1 + ph) * 0.18 + sin(uTime * 2.3 + ph * 2.0) * 0.05) * k; transformed.z += cos(uTime * 0.9 + ph) * 0.12 * k;'
             : 'transformed += vec3(sin(uTime * 1.3 + ph), sin(uTime * 1.7 + ph * 1.3) * 0.5, cos(uTime * 1.1 + ph)) * 0.025;'}
         #endif`);
     sh.vertexShader = 'uniform vec3 crownC;\n' + sh.vertexShader;

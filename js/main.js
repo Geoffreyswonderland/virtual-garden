@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { parseCSV } from './csv.js?v=9';
+import { parseCSV } from './csv.js?v=10';
 import { createWorld } from './world/index.js';
 import { createControls } from './controls.js';
 import { audioInit, setScape, oneShot, waterSound, toggleSound } from './audio.js';
@@ -53,7 +53,8 @@ const beacon = new THREE.Group();
     uniforms: { uTime: env.time, color: { value: new THREE.Color(1, 0.9, 0.65) }, fade: { value: 1 } },
     vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
     fragmentShader: `uniform float uTime, fade; uniform vec3 color; varying vec2 vUv;
-      void main(){ float a = pow(1.0 - vUv.y, 2.2) * (0.55 + 0.25 * sin(uTime * 2.0 + vUv.y * 6.0)) * (0.6 + 0.4 * sin(vUv.x * 6.2831 * 3.0 + uTime) * 0.5 + 0.2);
+      void main(){ float a = pow(clamp(1.0 - vUv.y, 0.0, 1.0), 2.2) * (0.55 + 0.25 * sin(uTime * 2.0 + vUv.y * 6.0)) * (0.6 + 0.2 * sin(vUv.x * 6.2831 * 3.0 + uTime) + 0.2);
+        a = clamp(a, 0.0, 1.0);
         a *= fade; gl_FragColor = vec4(color * a * 0.5, a * 0.5); }`,
   });
   const col = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.55, 3.2, 24, 1, true), colMat);
@@ -552,13 +553,17 @@ async function runSession() {
   const post = state.questions.filter(q => q.phase === 'post');
   for (const q of pre) await askRating(q, '開始之前');
 
+  const from = DEBUG ? Number(new URLSearchParams(location.search).get('from') || 0) : 0;
+  if (from > 0) { state.gateOpen = true; parts.gate[0].rotation.y = 1.65; parts.gate[1].rotation.y = -1.65; controls.place(0, -5.6, 0, 0); }
   for (const [i, a] of state.actions.entries()) {
+    if (i < from) continue;
     state.stage = i;
     const tag = `第${NUM[i] || i + 1}段`;
     setChapter(`${tag}・${a.time_label || ''}`, a.name, a.time_of_day);
     log('action_start', a.id);
+    if (a.target === 'linger' && i === from) env.setEnv('night', 0.01);
     if (a.time_of_day && a.target !== 'linger') {
-      const p = env.setEnv(a.time_of_day, i === 0 ? 0.01 : 7);
+      const p = env.setEnv(a.time_of_day, i === from ? 0.01 : 7);
       if (a.target === 'hoe') state.duskReady = p;
     }
     await say('旁白', tag, a.narration || a.task || '', '好');

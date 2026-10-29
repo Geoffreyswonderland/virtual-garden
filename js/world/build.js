@@ -81,7 +81,7 @@ function hut(scene) {
   g.add(doorL, doorR);
   // gable roof with a thick thatch
   const pitch = 0.62, over = 1.0, half = d / 2 + over, slabLen = half / Math.cos(pitch), rise = half * Math.tan(pitch);
-  const thatchUV = (mat, len) => { const m = mat.clone(); m.map = mat.map.clone(); m.normalMap = mat.normalMap.clone(); [m.map, m.normalMap].forEach(t => { t.repeat.set((w + 1.3) / 2.2, len / 1.6); t.needsUpdate = true; }); return m; };
+  const thatchUV = (mat, len) => { const m = mat.clone(); m.map = mat.map.clone(); m.normalMap = mat.normalMap.clone(); [m.map, m.normalMap].forEach(t => { t.repeat.set((w + 1.3) / 2.2, len / 1.6); }); return m; };
   const roofMat = thatchUV(thatchMat, slabLen);
   [-1, 1].forEach(side => {
     const slab = box(w + 1.3, 0.46, slabLen, roofMat, 0, TOP + rise / 2 + 0.14, side * half / 2, g, 99);
@@ -409,7 +409,6 @@ function tools(scene) {
 function pond(scene) {
   const { x, z, r } = L.pond;
   const nm = tex('ground_n.jpg', { srgb: false, repeat: 3 }).clone();
-  nm.needsUpdate = true;
   const water = mesh(new THREE.CircleGeometry(r, 48), new THREE.MeshStandardMaterial({ color: 0x1d3833, roughness: 0.06, metalness: 0, normalMap: nm, normalScale: new THREE.Vector2(0.12, 0.12), envMapIntensity: 1.2 }), x, 0.03, z, scene, { cast: false });
   water.rotation.x = -Math.PI / 2;
   const rockMat = surface('dirt', { repeat: 1, color: 0x9a948a });

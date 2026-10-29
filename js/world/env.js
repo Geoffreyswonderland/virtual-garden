@@ -125,6 +125,7 @@ export function createEnv(canvas, tierName) {
         for (int i = 0; i < SAMPLES; i++) {
           uv -= delta;
           vec3 c = texture2D(tDiffuse, clamp(uv, 0.001, 0.999)).rgb;
+          if (any(isnan(c)) || any(isinf(c))) c = vec3(0.0);
           float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
           vec2 dd = (uv - sunPos) * vec2(aspect, 1.0);
           acc += c * smoothstep(0.85, 2.4, l) * exp(-dot(dd, dd) * 3.5) * decay;

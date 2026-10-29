@@ -44,7 +44,6 @@ export function buildAtmos(scene, env) {
     mist.position.set(cx, h * 0.12, cz + depth * 0.3);
     mist.rotation.y = yaw;
     mist.material.map = mistTex.clone();
-    mist.material.map.needsUpdate = true;
     mist.material.map.repeat.set(1.5, 1);
     scene.add(mist);
     layers.push({ mat, mist, haze, tone: new THREE.Color(tone) });
@@ -130,8 +129,8 @@ export function buildAtmos(scene, env) {
     uniforms: { map: { value: softDot }, uTime: env.time, strength: { value: 0 } },
     vertexShader: `uniform float uTime; varying float vTw;
       void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.0);
-        vTw = 0.3 + 0.7 * pow(0.5 + 0.5 * sin(uTime * 2.1 + position.x * 17.0 + position.z * 11.0), 8.0);
-        gl_PointSize = 30.0 / -mv.z; gl_Position = projectionMatrix * mv; }`,
+        vTw = 0.3 + 0.7 * pow(clamp(0.5 + 0.5 * sin(uTime * 2.1 + position.x * 17.0 + position.z * 11.0), 0.0, 1.0), 8.0);
+        gl_PointSize = 30.0 / max(0.05, -mv.z); gl_Position = projectionMatrix * mv; }`,
     fragmentShader: `uniform sampler2D map; uniform float strength; varying float vTw;
       void main(){ vec4 t = texture2D(map, gl_PointCoord); float a = t.a * vTw * strength; gl_FragColor = vec4(vec3(0.78, 0.9, 1.0) * a, a); }`,
   });
