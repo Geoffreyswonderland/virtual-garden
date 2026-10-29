@@ -29,7 +29,7 @@ export const L = {
 // walking network (also painted onto the ground as dirt paths)
 export const PATHS = [
   [[0, 17], [0, 10], [0.45, 7], [0.2, 4], [-0.4, 1], [-0.5, -2], [0, -4.4], [0, -6.1]],
-  [[0.2, 4], [-1.6, 3.8], [-2.75, 3.65]],
+  [[0.2, 4], [-1.5, 2.3], [-3.4, 1.55], [-4.9, 1.5]],
   [[-0.4, 1], [1.4, 1.0], [2.3, 0.9]],
   [[2.3, 0.9], [2.35, 2.75], [5.0, 2.75], [7.1, 2.7]],
   [[2.3, 0.9], [2.2, -1.05]],
@@ -38,7 +38,7 @@ export const PATHS = [
 // where the player should stand for each target (used by "帶我過去")
 export const APPROACH = {
   gate: [0, 11.3],
-  veg: [-2.75, 3.65],
+  veg: [-4.3, 1.5],
   pouch: [2.35, 2.75],
   beans: [2.3, 0.9],
   bucket: [2.2, -1.05],

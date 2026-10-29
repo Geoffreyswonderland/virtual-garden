@@ -1,10 +1,10 @@
 import * as THREE from 'three';
-import { createEnv, pickTier } from './env.js';
-import { buildTerrain } from './terrain.js';
-import { buildGrass } from './grass.js';
-import { buildPlants, updatePlants, plantColliders, FOLIAGE } from './plants.js';
-import { buildStructures, boxColliders, circleColliders } from './build.js?v=16';
-import { buildAtmos } from './atmos.js';
+import { createEnv, pickTier } from './env.js?v=18';
+import { buildTerrain } from './terrain.js?v=18';
+import { buildGrass } from './grass.js?v=18';
+import { buildPlants, updatePlants, plantColliders, FOLIAGE } from './plants.js?v=18';
+import { buildStructures, boxColliders, circleColliders } from './build.js?v=18';
+import { buildAtmos } from './atmos.js?v=18';
 
 export function createWorld(canvas) {
   const tier = pickTier();

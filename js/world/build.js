@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { srand, srange, TAU, tex, surface, std, mesh, cutoutDepth, contactShadow } from './util.js';
-import { L } from './layout.js';
+import { L } from './layout.js?v=18';
 
 /* Everything made by hand: the thatched hut, the brushwood fence and gate,
    the vegetable bed, the bean field and the tools. */
@@ -260,7 +260,7 @@ function vegBed(scene) {
   pts.forEach(([px, pz], i) => { m.compose(new THREE.Vector3(px, 0, pz), new THREE.Quaternion().setFromEuler(new THREE.Euler(srange(-0.1, 0.1), 0, srange(-0.1, 0.1))), new THREE.Vector3(1, srange(0.8, 1.15), 1)); im.setMatrixAt(i, m); });
   im.castShadow = true;
   scene.add(im);
-  boxColliders.push([x - w / 2 - 0.15, x + w / 2 + 0.15, z - d / 2 - 0.15, z + d / 2 + 0.15]);
+  // no collider: the edging is low, and you can step in among the plants to reach a weed
   // 菘 (Chinese cabbage) rosettes
   const leafG = new THREE.SphereGeometry(0.11, 10, 6, 0, TAU, 0, Math.PI / 2).scale(0.7, 1.6, 0.35);
   const cab = std(0x7fa45f, { roughness: 0.6, side: THREE.DoubleSide });
@@ -302,7 +302,7 @@ function vegBed(scene) {
     return wg;
   });
   // a large bamboo basket by the path, at the near end of the bed, for the pulled weeds
-  const bx = x + w / 2 + 0.55, bz = z - d / 2 - 0.15;
+  const bx = x + w / 2 - 0.2, bz = z - d / 2 - 0.75;   // just in front of the bed, beside where you stand
   const basket = new THREE.Group();
   const weave = std(0xc2a56c, { map: tex('thatch.jpg'), roughness: 1, side: THREE.DoubleSide });
   mesh(new THREE.CylinderGeometry(0.42, 0.3, 0.52, 24, 1, true), weave, 0, 0.26, 0, basket);

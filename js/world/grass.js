@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { srand, srange, fbm, TAU } from './util.js';
-import { L, PATHS } from './layout.js';
+import { L, PATHS } from './layout.js?v=18';
 
 /* Real blades rather than picture cards: each instance is a thin curved
    ribbon, shaded dark at the root and light at the tip, swaying in gusts. */

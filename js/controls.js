@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { EYE, PATHS, APPROACH } from './world/layout.js';
+import { EYE, PATHS, APPROACH } from './world/layout.js?v=18';
 
 /* First-person walking, kept simple for people who do not play games:
    - joystick: up/down walks forward/back, left/right turns (not sidestep);

@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import { parseCSV } from './csv.js?v=16';
-import { createWorld } from './world/index.js?v=16';
-import { createControls } from './controls.js?v=17';
+import { createWorld } from './world/index.js?v=18';
+import { createControls } from './controls.js?v=18';
 import { audioInit, setScape, oneShot, waterSound, toggleSound } from './audio.js?v=16';
-import { L, PATHS, APPROACH, EYE } from './world/layout.js';
-import { pathDist } from './world/grass.js';
+import { L, PATHS, APPROACH, EYE } from './world/layout.js?v=18';
+import { pathDist } from './world/grass.js?v=18';
 
 /* =====================================================================
    STATE AND EVENT LOG
@@ -450,7 +450,7 @@ function handleTap(cx, cy) {
   if (item) {
     const d = item.global ? 0 : flat(item.pos, controls.st.x, controls.st.z);
     const reach = item.reach || 2.2;
-    if (d <= reach * 1.3) { if (!item.hold) use(item); return; }   // held things start on press, not on tap
+    if (d <= reach * 1.3) { if (!item.hold) use(item); else if (holdSt.p < 0.15) toast(item.holdHint || '按住不放才行'); return; }   // held things start on press, not on tap
     // too far: walk to a free spot beside it
     const spot = approachPoint(item);
     if (!spot) { toast('從另一邊過去看看'); return; }
@@ -526,7 +526,7 @@ const dropRing = new THREE.Mesh(new THREE.RingGeometry(0.2, 0.26, 32), new THREE
 dropRing.rotation.x = -Math.PI / 2;
 dropRing.visible = false;
 scene.add(dropRing);
-const DROP_REACH = 3.0;
+const DROP_REACH = 4.5;   // close enough to toss it in
 function inBed(x, z) { const b = L.veg; return Math.abs(x - b.x) < b.w / 2 + 0.2 && Math.abs(z - b.z) < b.d / 2 + 0.2; }
 function spotAt(cx, cy) {
   const r = canvas.getBoundingClientRect();
@@ -604,7 +604,7 @@ function placeWeed(w, src) {
       dropRing.visible = false;
       w.scale.setScalar(0.45);
       await hold(w, V(0.3, -0.3, -0.62), [0.3, 0.4, 0.6], 0.4);
-      setTask('理荒穢', '把草放進竹簍：走到竹簍旁，點竹簍或按「放進竹簍」');
+      setTask('理荒穢', '轉身找到竹簍，點一下竹簍把草丟進去');
       showBasketGuide(true);
       carryTap = (cx, cy) => {
         const sp = spotAt(cx, cy);
@@ -614,7 +614,7 @@ function placeWeed(w, src) {
         if (!sp.far) { toast('草要放進竹簍裡'); return true; }
         return false;
       };
-      offer([{ id: 'basket', obj: parts.weedBasket, pos: parts.weedBasket.position, reach: 2.0, label: '放進竹簍' }])
+      offer([{ id: 'basket', obj: parts.weedBasket, pos: parts.weedBasket.position, reach: 3.2, label: '丟進竹簍' }])
         .then(() => finish({ p: parts.weedBasket.position.clone(), basket: true }, 'button'));
     };
     // --- drag mode: the weed follows the finger until it is let go
@@ -677,7 +677,7 @@ const BEHAVIOURS = {
       const left = parts.weeds.filter(w => !w.userData.pulled);
       const item = await offer(left.map(w => ({
         id: 'weed', tag: parts.weeds.indexOf(w), obj: w, pos: w.position, reach: 2.4, label: '按住拔草',
-        hold: 1.3, holdHint: '按住草不放', tooShort: '根還抓著土，再按久一點',
+        hold: 1.3, holdHint: '要按住草不放，才拔得起來', tooShort: '根還抓著土，再按久一點',
         // the weed resists: it trembles and lifts a little as you pull
         onProgress: (p, t) => {
           const y0 = w.userData.y0;
