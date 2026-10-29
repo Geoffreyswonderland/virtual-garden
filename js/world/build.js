@@ -186,6 +186,8 @@ function fence(scene) {
     [0.3, 0.95].forEach(y => { const r = cyl(0.025, 0.025, wdt, darkWood, -s * wdt / 2, y, 0.03, hinge, 6); r.rotation.z = Math.PI / 2; });
     const br = cyl(0.02, 0.02, Math.hypot(wdt, 0.65), darkWood, -s * wdt / 2, 0.62, 0.035, hinge, 5);
     br.rotation.z = s * Math.atan2(wdt, 0.65);
+    // an invisible panel so a tap through the gaps still counts as the gate
+    mesh(new THREE.BoxGeometry(wdt, 1.2, 0.15), new THREE.MeshBasicMaterial({ visible: false }), -s * wdt / 2, 0.6, 0, hinge, { cast: false, receive: false });
     return hinge;
   });
   return leaves;
