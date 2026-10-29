@@ -3,7 +3,7 @@ import { createEnv, pickTier } from './env.js?v=18';
 import { buildTerrain } from './terrain.js?v=18';
 import { buildGrass } from './grass.js?v=21';
 import { buildPlants, updatePlants, plantColliders, FOLIAGE } from './plants.js?v=18';
-import { buildStructures, boxColliders, circleColliders } from './build.js?v=21';
+import { buildStructures, boxColliders, circleColliders } from './build.js?v=22';
 import { buildAtmos } from './atmos.js?v=18';
 
 export function createWorld(canvas) {

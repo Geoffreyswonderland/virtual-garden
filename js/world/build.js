@@ -346,11 +346,11 @@ function beanField(scene) {
     // a twig marks where each hole should go
     const stick = cyl(0.006, 0.008, 0.22, darkWood, h.x + 0.1, rowY + 0.09, h.z - 0.08, scene, 4);
     stick.rotation.z = 0.15;
-    const hole = mesh(new THREE.CircleGeometry(0.075, 18), holeMat, h.x, rowY + 0.005, h.z, scene, { cast: false });
+    const hole = mesh(new THREE.CircleGeometry(0.095, 18), holeMat, h.x, rowY + 0.005, h.z, scene, { cast: false });
     hole.rotation.x = -Math.PI / 2;
     hole.scale.setScalar(0.001);
     // the soil dug out piles up beside the hole, and goes back over the beans
-    const pile = mesh(new THREE.SphereGeometry(0.08, 12, 8, 0, TAU, 0, Math.PI / 2), soilMat, h.x + 0.13, rowY - 0.005, h.z + 0.02, scene, { receive: true });
+    const pile = mesh(new THREE.SphereGeometry(0.1, 12, 8, 0, TAU, 0, Math.PI / 2), soilMat, h.x + 0.16, rowY - 0.005, h.z + 0.02, scene, { receive: true });
     pile.scale.set(1.1, 0.001, 0.9);
     const mound = mesh(new THREE.SphereGeometry(0.085, 12, 8, 0, TAU, 0, Math.PI / 2), soilMat, h.x, rowY - 0.01, h.z, scene);
     mound.scale.set(1, 0.001, 1);
