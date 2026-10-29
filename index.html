@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&family=Noto+Serif+TC:wght@600;900&display=swap">
-<link rel="stylesheet" href="css/style.css?v=10">
+<link rel="stylesheet" href="css/style.css?v=12">
 <script type="importmap">
 { "imports": {
   "three": "./lib/three/three.module.js",
@@ -40,11 +40,11 @@
   <nav id="menu" aria-label="選單">
     <button id="btn-help" type="button"><span>說明</span></button>
     <button id="btn-sound" type="button" aria-pressed="true"><span>聲音</span></button>
-    <button id="btn-full" type="button"><span>全屏</span></button>
+    <button id="btn-full" type="button"><span>全螢幕</span></button>
   </nav>
 
-  <div id="stick" aria-label="移動搖桿"><div id="knob"></div></div>
-  <p id="keys-hint">WASD／方向鍵走動・拖曳畫面環顧</p>
+  <div id="stick" aria-label="移動搖桿：上下前進後退，左右轉身"><span class="s-up">前進</span><span class="s-down">後退</span><span class="s-left">↺</span><span class="s-right">↻</span><div id="knob"></div></div>
+  <p id="keys-hint">W／S 前進後退・A／D 轉向・點地面就走過去・拖曳畫面環顧</p>
   <button id="act" type="button" hidden></button>
   <div id="edge" hidden><span class="arrow"></span><span id="edge-dist"></span></div>
   <p id="toast" role="status"></p>
@@ -65,7 +65,7 @@
     <p class="lede">離開城市，推開柴門，在園子裡過完一天：清晨除草、正午種豆，黃昏扛著鋤頭，在月色中走回草屋。每一段結束後，會請你說說此刻的感受。</p>
     <ul class="facts">
       <li>約 8 分鐘・建議戴耳機</li>
-      <li>左下角搖桿（或 WASD）走動，拖曳畫面環顧，點東西就能互動</li>
+      <li>點一下地面就會走過去；也可以用左下角搖桿或鍵盤。點東西就能互動</li>
       <li>這是展示雛形，紀錄只留在這台裝置上，不會上傳</li>
     </ul>
     <p id="load-error" class="error" hidden></p>
@@ -77,9 +77,11 @@
   <div class="panel help-card">
     <h2>怎麼玩</h2>
     <ul class="facts">
-      <li><b>走動</b>：左下角的搖桿；電腦也可以用 WASD 或方向鍵。</li>
+      <li><b>走過去</b>：點一下地面，就會走到那裡。</li>
+      <li><b>搖桿</b>：往上推前進、往下退後，往左右推是轉身。平板上，左手拇指放在畫面左下任何地方，搖桿就會出現在那裡。</li>
+      <li><b>鍵盤</b>：W／S 或 ↑／↓ 前進後退，A／D 或 ←／→ 轉向，Q／E 側移，按住 Shift 走快一點。</li>
       <li><b>環顧</b>：在畫面上拖曳。</li>
-      <li><b>互動</b>：走近發光的地方，點東西本身，或點右下角的圓形按鈕。</li>
+      <li><b>互動</b>：點東西本身（太遠會自動走過去），或走近後點右下角的圓形按鈕。</li>
       <li><b>迷路了</b>：點右上角任務框裡的「帶我過去」。</li>
     </ul>
     <p class="fine">這個雛形用來展示「過程測量」：傳統研究只在活動前後各問一次，這裡記錄的是活動進行中每一段之後的感受、走動軌跡與停留時間。</p>
@@ -110,6 +112,6 @@
   </div>
 </section>
 
-<script type="module" src="js/main.js?v=10"></script>
+<script type="module" src="js/main.js?v=12"></script>
 </body>
 </html>

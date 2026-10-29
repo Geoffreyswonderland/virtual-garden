@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { parseCSV } from './csv.js?v=10';
+import { parseCSV } from './csv.js?v=12';
 import { createWorld } from './world/index.js';
 import { createControls } from './controls.js';
 import { audioInit, setScape, oneShot, waterSound, toggleSound } from './audio.js';
@@ -328,18 +328,47 @@ function updateNear() {
   }
 }
 $('#act').addEventListener('click', () => { if (near) use(near); });
+const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), groundHit = new THREE.Vector3();
+const destRing = new THREE.Mesh(new THREE.RingGeometry(0.16, 0.22, 32), new THREE.MeshBasicMaterial({ color: 0xfff2d0, transparent: true, opacity: 0.8, depthWrite: false, side: THREE.DoubleSide }));
+destRing.rotation.x = -Math.PI / 2;
+destRing.visible = false;
+scene.add(destRing);
+function walkToPoint(x, z, kind) {
+  destRing.position.set(x, 0.04, z);
+  destRing.visible = true;
+  log('tap_walk', kind, `${x.toFixed(2)};${z.toFixed(2)}`);
+  return controls.goTo(x, z).then(ok => { destRing.visible = false; return ok; });
+}
 function handleTap(cx, cy) {
-  if (!offers.length || !controls.enabled) return;
+  if (!controls.enabled) return;
   const r = canvas.getBoundingClientRect();
   raycaster.setFromCamera(new THREE.Vector2(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1), camera);
+  // 1. something we can use?
   const objs = offers.filter(o => o.obj).flatMap(o => (Array.isArray(o.obj) ? o.obj : [o.obj]));
-  const hit = raycaster.intersectObjects(objs, true)[0];
-  if (!hit) { log('miss'); return; }
-  const item = offers.find(o => o.obj && (Array.isArray(o.obj) ? o.obj : [o.obj]).some(g => { for (let n = hit.object; n; n = n.parent) if (n === g) return true; return false; }));
-  if (!item) return;
-  const d = item.global ? 0 : flat(item.pos, controls.st.x, controls.st.z);
-  if (d > (item.reach || 2.2) * 1.3) { toast('再走近一點'); log('too_far', item.id, d.toFixed(1)); return; }
-  use(item);
+  const hit = objs.length ? raycaster.intersectObjects(objs, true)[0] : null;
+  const item = hit && offers.find(o => o.obj && (Array.isArray(o.obj) ? o.obj : [o.obj]).some(g => { for (let n = hit.object; n; n = n.parent) if (n === g) return true; return false; }));
+  if (item) {
+    const d = item.global ? 0 : flat(item.pos, controls.st.x, controls.st.z);
+    const reach = item.reach || 2.2;
+    if (d <= reach * 1.3) { use(item); return; }
+    // too far: walk up to it, then use it
+    const k = (d - reach * 0.7) / d;
+    const x = controls.st.x + (item.pos.x - controls.st.x) * k, z = controls.st.z + (item.pos.z - controls.st.z) * k;
+    walkToPoint(x, z, item.id).then(() => {
+      if (offers.includes(item) && flat(item.pos, controls.st.x, controls.st.z) <= reach * 1.3) use(item);
+      else toast('再走近一點');
+    });
+    return;
+  }
+  // 2. otherwise, walk to the spot on the ground
+  if (!raycaster.ray.intersectPlane(groundPlane, groundHit)) return;
+  const d = flat(groundHit, controls.st.x, controls.st.z);
+  if (d < 0.6 || d > 25) return;
+  // stop short of anything in the way
+  let tx = groundHit.x, tz = groundHit.z;
+  for (let i = 0; i < 20 && !controls.free(tx, tz); i++) { tx = controls.st.x + (tx - controls.st.x) * 0.85; tz = controls.st.z + (tz - controls.st.z) * 0.85; }
+  if (flat({ x: tx, z: tz }, controls.st.x, controls.st.z) < 0.5) { toast('那裡過不去'); return; }
+  walkToPoint(tx, tz, 'ground');
 }
 
 /* ---------- arrow at the screen edge when the target is out of view ---------- */
