@@ -1,8 +1,8 @@
 import * as THREE from 'three';
-import { parseCSV } from './csv.js?v=14';
-import { createWorld } from './world/index.js?v=14';
-import { createControls } from './controls.js?v=14';
-import { audioInit, setScape, oneShot, waterSound, toggleSound } from './audio.js?v=14';
+import { parseCSV } from './csv.js?v=15';
+import { createWorld } from './world/index.js?v=15';
+import { createControls } from './controls.js?v=15';
+import { audioInit, setScape, oneShot, waterSound, toggleSound } from './audio.js?v=15';
 import { L, PATHS, APPROACH, EYE } from './world/layout.js';
 import { pathDist } from './world/grass.js';
 
@@ -392,6 +392,7 @@ function updateHold(dt, t) {
     controls.st.lookLock = false;
     actEl.classList.remove('holding');
     actEl.style.setProperty('--p', 0);
+    holdSt.lastSrc = holdSt.src;
     log('hold_done', it.id + (it.tag !== undefined ? ':' + it.tag : ''), now() - holdSt.t0);
     use(it);
   } else if (!holdSt.active && holdSt.p === 0 && it.decay !== false) holdSt.item = null;
@@ -440,8 +441,10 @@ function walkToPoint(x, z, kind) {
   log('tap_walk', kind, `${x.toFixed(2)};${z.toFixed(2)}`);
   return controls.goTo(x, z).then(ok => { destRing.visible = false; return ok; });
 }
+let carryTap = null;   // set while a pulled weed is in hand: a tap chooses where it goes
 function handleTap(cx, cy) {
   if (!controls.enabled) return;
+  if (carryTap && carryTap(cx, cy)) return;
   // 1. something we can use?
   const item = pickOffer(cx, cy);
   if (item) {
@@ -510,6 +513,109 @@ const V = (x, y, z) => new THREE.Vector3(x, y, z);
 /* =====================================================================
    STAGES: each `target` in actions.csv maps to one behaviour here
    ===================================================================== */
+/* ---------- carrying a pulled weed and putting it down yourself ----------
+   Still holding after it comes out: drag it to a spot and let go.
+   Pulled with the button or a key: it stays in hand; tap where it should
+   go (outside the bed, or the basket). */
+const press = { down: false, x: 0, y: 0 };
+window.addEventListener('pointerdown', e => { press.down = true; press.x = e.clientX; press.y = e.clientY; }, true);
+window.addEventListener('pointermove', e => { press.x = e.clientX; press.y = e.clientY; }, true);
+window.addEventListener('pointerup', () => { press.down = false; }, true);
+window.addEventListener('pointercancel', () => { press.down = false; }, true);
+const dropRing = new THREE.Mesh(new THREE.RingGeometry(0.2, 0.26, 32), new THREE.MeshBasicMaterial({ color: 0xbff0c8, transparent: true, opacity: 0.85, depthWrite: false, side: THREE.DoubleSide }));
+dropRing.rotation.x = -Math.PI / 2;
+dropRing.visible = false;
+scene.add(dropRing);
+const DROP_REACH = 3.0;
+function inBed(x, z) { const b = L.veg; return Math.abs(x - b.x) < b.w / 2 + 0.2 && Math.abs(z - b.z) < b.d / 2 + 0.2; }
+function spotAt(cx, cy) {
+  const r = canvas.getBoundingClientRect();
+  raycaster.setFromCamera(new THREE.Vector2(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1), camera);
+  if (raycaster.intersectObject(parts.weedBasket, true).length) return { p: parts.weedBasket.position.clone(), basket: true, ok: flat(parts.weedBasket.position, controls.st.x, controls.st.z) < DROP_REACH };
+  if (!raycaster.ray.intersectPlane(groundPlane, groundHit)) return null;
+  const p = groundHit.clone();
+  const d = flat(p, controls.st.x, controls.st.z);
+  const near = Math.hypot(p.x - parts.weedBasket.position.x, p.z - parts.weedBasket.position.z) < 0.4;
+  if (near) return { p: parts.weedBasket.position.clone(), basket: true, ok: d < DROP_REACH };
+  return { p, basket: false, ok: d < DROP_REACH && !inBed(p.x, p.z), far: d >= DROP_REACH, bed: inBed(p.x, p.z) };
+}
+let basketCount = 0;
+async function settleWeed(w, spot) {
+  scene.attach(w);
+  const from = w.position.clone(), r0 = w.rotation.clone();
+  let to, rx;
+  if (spot.basket) { basketCount++; to = spot.p.clone().add(V((Math.random() - 0.5) * 0.16, 0.2 + basketCount * 0.03, (Math.random() - 0.5) * 0.16)); rx = 0.9; }
+  else { to = V(spot.p.x, 0.05, spot.p.z); rx = Math.PI / 2 * 0.92; }
+  const s0 = w.scale.x, s1 = spot.basket ? 0.55 : 0.85;
+  await tw(0.55, k => {
+    w.position.lerpVectors(from, to, k);
+    w.position.y += Math.sin(k * Math.PI) * 0.25;
+    w.rotation.set(lerp(r0.x, rx, k), r0.y + k * 0.6, lerp(r0.z, 0.2, k));
+    const sc = lerp(s0, s1, k); w.scale.set(sc, sc, sc);
+  });
+  oneShot(spot.basket ? 'seed' : 'stepGrass', 0.8);
+}
+function placeWeed(w, src) {
+  return new Promise(async resolve => {
+    const from = w.position.clone(), up = from.clone().add(V(0, 0.4, 0));
+    await tw(0.3, k => { w.position.lerpVectors(from, up, k); w.rotation.x = 0; w.rotation.z = k * 0.3; });
+    setHeld('一叢雜草（連根帶土）');
+    let done = false;
+    const finish = async (spot, how) => {
+      if (done) return;
+      done = true;
+      dropRing.visible = false;
+      carryTap = null;
+      hooks.delete(follow);
+      controls.st.lookLock = false;
+      offers = []; offerResolve = null; near = null; actEl.hidden = true;
+      await settleWeed(w, spot);
+      setHeld('');
+      resolve(`${spot.basket ? 'basket' : 'ground'};${spot.p.x.toFixed(2)};${spot.p.z.toFixed(2)};${how}`);
+    };
+    // --- hand mode: tap a spot, or the basket button when near it
+    const handMode = async () => {
+      if (done) return;
+      hooks.delete(follow);
+      controls.st.lookLock = false;
+      dropRing.visible = false;
+      await hold(w, V(0.32, -0.36, -0.62), [0.25, 0.4, 0.5], 0.4);
+      setTask('理荒穢', '把草放到一旁：點菜圃外的地面，或點竹簍');
+      carryTap = (cx, cy) => {
+        const sp = spotAt(cx, cy);
+        if (!sp) return false;
+        if (sp.ok) { finish(sp, 'tap'); return true; }
+        if (sp.bed && !sp.far) { toast('不要放回菜圃裡'); return true; }
+        return false;   // far away: let the tap walk there, still carrying
+      };
+      offer([{ id: 'basket', obj: parts.weedBasket, pos: parts.weedBasket.position, reach: 2.0, label: '放進竹簍' }])
+        .then(() => finish({ p: parts.weedBasket.position.clone(), basket: true }, 'button'));
+    };
+    // --- drag mode: the weed follows the finger until it is let go
+    let last = null;
+    const follow = () => {
+      if (!press.down) {
+        if (last && last.ok) finish(last, 'drag');
+        else { if (last && last.bed) toast('不要放回菜圃裡，放到外面或竹簍'); handMode(); }
+        return;
+      }
+      const sp = spotAt(press.x, press.y);
+      if (!sp) return;
+      last = sp;
+      const tgt = sp.ok ? sp.p : V(lerp(controls.st.x, sp.p.x, 0.6), 0, lerp(controls.st.z, sp.p.z, 0.6));
+      w.position.lerp(V(tgt.x, (sp.basket ? 0.55 : 0.32) + Math.sin(performance.now() / 180) * 0.015, tgt.z), 0.25);
+      dropRing.position.set(sp.p.x, (sp.basket ? 0.36 : 0.03), sp.p.z);
+      dropRing.material.color.set(sp.ok ? 0xbff0c8 : 0xf0a08f);
+      dropRing.visible = true;
+    };
+    if (press.down && src !== 'key') {
+      controls.st.lookLock = true;
+      setTask('理荒穢', '別放手，拖到菜圃外面或竹簍再放開');
+      hooks.add(follow);
+    } else handMode();
+  });
+}
+
 const BEHAVIOURS = {
   /* 序：久在樊籠裡，復得返自然 */
   async gate(a) {
@@ -535,11 +641,11 @@ const BEHAVIOURS = {
     const total = parts.weeds.length;
     const basket = parts.weedBasket.position;
     while (pulled < total) {
-      setTask(a.name, `${a.task}（${pulled} / ${total}）　按住，把草連根拔起`);
+      setTask(a.name, `${a.task}（${pulled} / ${total}）　按住草，把它連根拔起`);
       const left = parts.weeds.filter(w => !w.userData.pulled);
       const item = await offer(left.map(w => ({
         id: 'weed', tag: parts.weeds.indexOf(w), obj: w, pos: w.position, reach: 2.4, label: '按住拔草',
-        hold: 1.3, holdHint: '按住草，或按住右下角的按鈕', tooShort: '根還抓著土，再按久一點',
+        hold: 1.3, holdHint: '按住草不放', tooShort: '根還抓著土，再按久一點',
         // the weed resists: it trembles and lifts a little as you pull
         onProgress: (p, t) => {
           const y0 = w.userData.y0;
@@ -551,25 +657,12 @@ const BEHAVIOURS = {
       })));
       const w = item.obj;
       w.userData.pulled = true;
-      pulled++;
-      if (pulled === 1) beacon.visible = false;
+      if (pulled === 0) beacon.visible = false;
       oneShot('pull');
       burst(w.position);
-      // out it comes, roots and all, then into the basket
-      const from = w.position.clone();
-      const up = from.clone().add(V(0, 0.42, 0));
-      const slot = basket.clone().add(V((Math.random() - 0.5) * 0.18, 0.22 + pulled * 0.03, (Math.random() - 0.5) * 0.18));
-      (async () => {
-        await tw(0.35, k => { w.position.lerpVectors(from, up, k); w.rotation.x = 0; w.rotation.z = k * 0.4; });
-        await wait(250);
-        await tw(0.75, k => {
-          w.position.lerpVectors(up, slot, k);
-          w.position.y += Math.sin(k * Math.PI) * 0.5;
-          w.rotation.z = 0.4 + k * 1.2;
-          const s2 = 1 - k * 0.45; w.scale.set(s2, s2, s2);
-        });
-        oneShot('seed', 0.6);
-      })();
+      const where = await placeWeed(w, holdSt.lastSrc);
+      pulled++;
+      log('weed_drop', String(item.tag), where);
     }
     setTask(a.name, `${a.task}（${total} / ${total}）`);
     setTarget(null);
