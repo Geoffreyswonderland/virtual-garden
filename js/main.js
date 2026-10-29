@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { parseCSV } from './csv.js';
-import { createGarden } from './garden.js';
+import { parseCSV } from './csv.js?v=3';
+import { createGarden } from './garden.js?v=3';
 
 /* =====================================================================
    STATE AND EVENT LOG
