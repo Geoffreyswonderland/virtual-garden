@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>東籬小園｜虛擬園藝活動雛形</title>
-<meta name="description" content="結合詩詞與過程測量的虛擬園藝活動雛形：移植、澆水、採菊，並記錄每個動作後的放鬆程度。">
+<title>歸園田居｜虛擬園藝活動雛形</title>
+<meta name="description" content="以陶淵明〈歸園田居〉為故事線的虛擬園藝活動雛形：從城市推開柴門，除草、種豆，在月色中荷鋤而歸，並記錄每一段之後的放鬆程度。">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&family=Noto+Sans+TC:wght@400;500;700&display=swap">
-<link rel="stylesheet" href="css/style.css?v=6">
+<link rel="stylesheet" href="css/style.css?v=7">
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
@@ -17,7 +17,7 @@
 </script>
 </head>
 <body>
-<canvas id="scene" aria-label="虛擬庭園"></canvas>
+<canvas id="scene" aria-label="虛擬田園"></canvas>
 
 <header id="hud" hidden>
   <span id="step"></span>
@@ -28,10 +28,10 @@
 <section id="title" class="overlay">
   <div class="card intro">
     <p class="eyebrow">虛擬園藝活動・展示雛形</p>
-    <h1>東籬小園</h1>
-    <p class="lede">在一座安靜的小園裡，種下一株幼苗、為它澆水，再到籬笆旁採一朵菊花。每做完一件事，會請你說說此刻的感受。</p>
+    <h1>歸園田居</h1>
+    <p class="lede">離開城市，推開柴門，在園子裡過完一天：清晨除草、正午種豆，傍晚扛著鋤頭在月色中走回家。每一段結束後，會請你說說此刻的感受。</p>
     <ul class="facts">
-      <li>約 5 分鐘・建議戴耳機</li>
+      <li>約 6 分鐘・建議戴耳機</li>
       <li>拖曳畫面可以環顧四周</li>
       <li>這是展示雛形，資料只留在這台裝置上，不會上傳</li>
     </ul>
@@ -49,7 +49,7 @@
 <section id="result" class="overlay" hidden>
   <div class="card wide">
     <p class="eyebrow">你的療癒歷程</p>
-    <h2>每一個動作之後的你</h2>
+    <h2>這一天裡的你</h2>
     <p class="lede">傳統研究只在活動前後各問一次；這條時間軸記錄了活動「過程中」的變化。</p>
     <div id="timeline" class="chart"></div>
     <div id="post-scores"></div>
@@ -61,6 +61,6 @@
   </div>
 </section>
 
-<script type="module" src="js/main.js?v=6"></script>
+<script type="module" src="js/main.js?v=7"></script>
 </body>
 </html>

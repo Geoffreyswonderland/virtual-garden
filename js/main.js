@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { parseCSV } from './csv.js?v=6';
-import { createGarden } from './garden.js?v=6';
+import { parseCSV } from './csv.js?v=7';
+import { createGarden } from './garden.js?v=7';
 
 /* =====================================================================
    STATE AND EVENT LOG
@@ -28,16 +28,18 @@ async function loadData() {
    ===================================================================== */
 const canvas = $('#scene');
 const G = createGarden(canvas);
-const { scene, camera, look, LIMIT, applyLook, BED, standL, standR, seedling, sprout, leaves, can, flowers, MOUNTAIN, marker, drops } = G;
+const { scene, camera, look, LIMIT, applyLook, STAND, HUT, BED, HOLES, standL, standR, gate, weeds, pouch, beans, sprouts, can, hoe, drops, dewMat, marker } = G;
+scene.add(camera); // so the carried hoe can ride along with the camera
 
 /* =====================================================================
    TWEENS AND LOOP
    ===================================================================== */
 const tweens = [];
 const ease = k => (k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2);
-const tw = (dur, fn) => new Promise(done => tweens.push({ t: 0, dur, fn, done }));
+const tw = (dur, fn, curve = ease) => new Promise(done => tweens.push({ t: 0, dur, fn, curve, done }));
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const lerp = (a, b, k) => a + (b - a) * k;
+const angDiff = (a, b) => { let d = (b - a) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return d; };
 
 const clock = new THREE.Clock();
 function frame() {
@@ -46,7 +48,7 @@ function frame() {
     const w = tweens[i];
     w.t += dt;
     const k = Math.min(1, w.t / w.dur);
-    w.fn(ease(k));
+    w.fn(w.curve(k));
     if (k >= 1) { tweens.splice(i, 1); w.done(); }
   }
   G.update(dt, t);
@@ -60,18 +62,18 @@ requestAnimationFrame(frame);
    INPUT: drag to look around, tap to interact
    ===================================================================== */
 const raycaster = new THREE.Raycaster();
-let drag = null, active = null;
+let drag = null, active = null, locked = false;
 canvas.addEventListener('pointerdown', e => {
   drag = { x: e.clientX, y: e.clientY, yaw: look.yaw, pitch: look.pitch, moved: 0 };
   canvas.setPointerCapture(e.pointerId);
 });
 canvas.addEventListener('pointermove', e => {
-  if (!drag) return;
+  if (!drag || locked) return;
   const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
   drag.moved = Math.max(drag.moved, Math.hypot(dx, dy));
   if (drag.moved > 6) {
     canvas.classList.add('dragging');
-    look.yaw = THREE.MathUtils.clamp(drag.yaw + dx * 0.004, LIMIT.yawMin, LIMIT.yawMax);
+    look.yaw = drag.yaw + dx * 0.004;
     look.pitch = THREE.MathUtils.clamp(drag.pitch + dy * 0.004, LIMIT.pitchMin, LIMIT.pitchMax);
     applyLook();
   }
@@ -100,10 +102,13 @@ function waitTap(id, targets, markerAt) {
 const isInside = (obj, group) => { for (let o = obj; o; o = o.parent) if (o === group) return true; return false; };
 
 /* =====================================================================
-   AMBIENT SOUND (synthesised for the prototype; the research version
-   will use loudness-matched field recordings)
+   SOUNDSCAPES (synthesised for the prototype; the research version will
+   use loudness-matched field recordings)
+   city   : traffic hum and passing cars (久在樊籠裡)
+   garden : wind, a small stream, birds
+   night  : crickets and a softer wind
    ===================================================================== */
-const AU = { ctx: null, master: null, on: true, birdTimer: 0 };
+const AU = { ctx: null, master: null, on: true, scape: 'city', bus: {} };
 function noiseBuffer(ctx, brown) {
   const b = ctx.createBuffer(1, ctx.sampleRate * 4, ctx.sampleRate), d = b.getChannelData(0);
   let last = 0;
@@ -113,41 +118,94 @@ function noiseBuffer(ctx, brown) {
   }
   return b;
 }
+function loopNoise(brown) {
+  const s = AU.ctx.createBufferSource();
+  s.buffer = brown ? AU.brown : AU.white;
+  s.loop = true;
+  s.start();
+  return s;
+}
+function filt(type, freq, q = 0.7) { const f = AU.ctx.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q; return f; }
+function gain(v) { const g = AU.ctx.createGain(); g.gain.value = v; return g; }
+
 function audioInit() {
   if (AU.ctx) return;
   const ctx = new (window.AudioContext || window.webkitAudioContext)();
   AU.ctx = ctx;
-  AU.master = ctx.createGain();
-  AU.master.gain.value = 0.7;
+  AU.white = noiseBuffer(ctx, false);
+  AU.brown = noiseBuffer(ctx, true);
+  AU.master = gain(0.7);
   AU.master.connect(ctx.destination);
-  // wind
-  const wind = ctx.createBufferSource(); wind.buffer = noiseBuffer(ctx, true); wind.loop = true;
-  const wf = ctx.createBiquadFilter(); wf.type = 'lowpass'; wf.frequency.value = 420;
-  const wg = ctx.createGain(); wg.gain.value = 0.22;
-  const lfo = ctx.createOscillator(); lfo.frequency.value = 0.07;
-  const lg = ctx.createGain(); lg.gain.value = 0.1;
-  lfo.connect(lg).connect(wg.gain);
-  wind.connect(wf).connect(wg).connect(AU.master);
-  // a small stream on the left
-  const st = ctx.createBufferSource(); st.buffer = noiseBuffer(ctx, false); st.loop = true;
-  const sf = ctx.createBiquadFilter(); sf.type = 'bandpass'; sf.frequency.value = 1300; sf.Q.value = 0.7;
-  const sg = ctx.createGain(); sg.gain.value = 0.045;
+  const bus = AU.bus;
+  ['city', 'garden', 'night'].forEach(k => { bus[k] = gain(k === 'city' ? 1 : 0); bus[k].connect(AU.master); });
+
+  // city: low rumble, a band of tyre noise, an occasional horn-like hum
+  loopNoise(true).connect(filt('lowpass', 160)).connect(gain(0.5)).connect(bus.city);
+  loopNoise(false).connect(filt('bandpass', 700, 0.5)).connect(gain(0.05)).connect(bus.city);
+  const hum = ctx.createOscillator(); hum.type = 'sawtooth'; hum.frequency.value = 58;
+  hum.connect(filt('lowpass', 220)).connect(gain(0.018)).connect(bus.city); hum.start();
+
+  // garden: wind with slow gusts, a stream on the left
+  const wg = gain(0.22);
+  loopNoise(true).connect(filt('lowpass', 420)).connect(wg).connect(bus.garden);
+  const lfo = ctx.createOscillator(); lfo.frequency.value = 0.07; lfo.connect(gain(0.1)).connect(wg.gain); lfo.start();
+  const sf = filt('bandpass', 1300);
   const sp = ctx.createStereoPanner(); sp.pan.value = -0.6;
-  st.connect(sf).connect(sg).connect(sp).connect(AU.master);
+  loopNoise(false).connect(sf).connect(gain(0.045)).connect(sp).connect(bus.garden);
   setInterval(() => sf.frequency.setTargetAtTime(1000 + Math.random() * 700, ctx.currentTime, 0.4), 700);
-  wind.start(); st.start(); lfo.start();
+
+  // night: soft wind and two crickets
+  loopNoise(true).connect(filt('lowpass', 300)).connect(gain(0.12)).connect(bus.night);
+  [[4300, -0.5, 27], [4700, 0.6, 31]].forEach(([f, pan, rate]) => {
+    const o = ctx.createOscillator(); o.frequency.value = f;
+    const am = gain(0); const sq = ctx.createOscillator(); sq.type = 'square'; sq.frequency.value = rate;
+    sq.connect(gain(0.5)).connect(am.gain); sq.start(); o.start();
+    const gate = gain(0), p = ctx.createStereoPanner(); p.pan.value = pan;
+    o.connect(am).connect(gate).connect(gain(0.03)).connect(p).connect(bus.night);
+    const chirpLoop = () => {
+      const t = ctx.currentTime;
+      gate.gain.setTargetAtTime(1, t, 0.01);
+      gate.gain.setTargetAtTime(0, t + 0.18 + Math.random() * 0.12, 0.02);
+      setTimeout(chirpLoop, 500 + Math.random() * 900);
+    };
+    chirpLoop();
+  });
+
+  scheduleCar();
   scheduleBird();
+}
+function setScape(name, seconds = 3) {
+  AU.scape = name;
+  log('soundscape', name);
+  if (!AU.ctx) return;
+  const t = AU.ctx.currentTime;
+  Object.entries(AU.bus).forEach(([k, g]) => g.gain.setTargetAtTime(k === name ? 1 : 0, t, seconds / 3));
+}
+function scheduleCar() {
+  setTimeout(() => {
+    if (AU.scape === 'city') {
+      const C = AU.ctx, t = C.currentTime, d = 2.5 + Math.random() * 2;
+      const s = C.createBufferSource(); s.buffer = AU.white;
+      const f = filt('lowpass', 300), g = gain(0), p = C.createStereoPanner();
+      const dir = Math.random() < 0.5 ? -1 : 1;
+      p.pan.setValueAtTime(-0.9 * dir, t); p.pan.linearRampToValueAtTime(0.9 * dir, t + d);
+      f.frequency.setValueAtTime(300, t); f.frequency.linearRampToValueAtTime(1400, t + d / 2); f.frequency.linearRampToValueAtTime(350, t + d);
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.16, t + d / 2); g.gain.linearRampToValueAtTime(0, t + d);
+      s.connect(f).connect(g).connect(p).connect(AU.bus.city);
+      s.start(t); s.stop(t + d + 0.1);
+    }
+    scheduleCar();
+  }, 2500 + Math.random() * 4500);
 }
 function chirp() {
   const C = AU.ctx, pan = C.createStereoPanner();
   pan.pan.value = Math.random() * 1.8 - 0.9;
-  pan.connect(AU.master);
+  pan.connect(AU.bus.garden);
   let t = C.currentTime + 0.05;
   const base = 2300 + Math.random() * 1500, n = 3 + Math.floor(Math.random() * 5);
   for (let i = 0; i < n; i++) {
     const o = C.createOscillator(), g = C.createGain(), dur = 0.05 + Math.random() * 0.1;
     const f0 = base * (0.85 + Math.random() * 0.5);
-    o.type = 'sine';
     o.frequency.setValueAtTime(f0, t);
     o.frequency.exponentialRampToValueAtTime(f0 * (0.7 + Math.random() * 0.8), t + dur);
     g.gain.setValueAtTime(0, t);
@@ -159,18 +217,27 @@ function chirp() {
   }
 }
 function scheduleBird() {
-  AU.birdTimer = setTimeout(() => { chirp(); scheduleBird(); }, 2500 + Math.random() * 5500);
+  setTimeout(() => { if (AU.scape === 'garden') chirp(); scheduleBird(); }, 2500 + Math.random() * 5500);
+}
+function oneShot(kind) {
+  if (!AU.ctx) return;
+  const C = AU.ctx, t = C.currentTime, s = C.createBufferSource(); s.buffer = AU.white;
+  const spec = { creak: ['bandpass', 380, 6, 0.08, 0.9], pull: ['bandpass', 900, 1.2, 0.07, 0.35], seed: ['highpass', 3000, 0.7, 0.03, 0.08], step: ['lowpass', 500, 0.7, 0.05, 0.12] }[kind];
+  const f = filt(spec[0], spec[1], spec[2]), g = gain(0);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(spec[3], t + 0.02); g.gain.exponentialRampToValueAtTime(0.0005, t + spec[4]);
+  s.connect(f).connect(g).connect(AU.master);
+  s.start(t); s.stop(t + spec[4] + 0.05);
 }
 function waterSound(on) {
   if (!AU.ctx) return;
+  const C = AU.ctx;
   if (on) {
-    const C = AU.ctx, s = C.createBufferSource(); s.buffer = noiseBuffer(C, false); s.loop = true;
-    const f = C.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 2500;
-    const g = C.createGain(); g.gain.value = 0; g.gain.linearRampToValueAtTime(0.06, C.currentTime + 0.4);
-    s.connect(f).connect(g).connect(AU.master); s.start();
+    const s = C.createBufferSource(); s.buffer = AU.white; s.loop = true;
+    const g = gain(0); g.gain.linearRampToValueAtTime(0.06, C.currentTime + 0.4);
+    s.connect(filt('highpass', 2500)).connect(g).connect(AU.master); s.start();
     AU.water = { s, g };
   } else if (AU.water) {
-    const { s, g } = AU.water, C = AU.ctx;
+    const { s, g } = AU.water;
     g.gain.linearRampToValueAtTime(0, C.currentTime + 0.5);
     s.stop(C.currentTime + 0.6);
     AU.water = null;
@@ -189,6 +256,7 @@ $('#sound').addEventListener('click', () => {
    ===================================================================== */
 const panel = $('#panel'), card = $('#panel-card');
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const say = text => { $('#instruction').textContent = text; };
 
 function askSliders(questions, heading = '') {
   return new Promise(resolve => {
@@ -223,7 +291,7 @@ function askSliders(questions, heading = '') {
 function showPoem(a) {
   return new Promise(resolve => {
     const box = $('#poem-box');
-    const lines = a.poem.split(/[，,]/).map(s => s.replace(/[。.]$/, '')).filter(Boolean);
+    const lines = a.poem.split(/[，,。.；;]/).map(s => s.trim()).filter(Boolean);
     box.innerHTML = `<div class="poem-lines">${lines.map(l => `<span>${esc(l)}</span>`).join('')}</div>
       <p class="poem-src">${esc(a.poem_source)}</p>
       ${a.poem_note ? `<p class="poem-note">${esc(a.poem_note)}</p>` : ''}
@@ -240,63 +308,146 @@ function showPoem(a) {
 }
 
 /* =====================================================================
-   ACTIONS: each `target` in actions.csv maps to one behaviour here
+   CAMERA HELPERS
    ===================================================================== */
 async function lookTo(yaw, pitch, dur = 1.4) {
-  const y0 = look.yaw, p0 = look.pitch;
-  await tw(dur, k => { look.yaw = lerp(y0, yaw, k); look.pitch = lerp(p0, pitch, k); applyLook(); });
+  const y0 = look.yaw, p0 = look.pitch, dy = angDiff(y0, yaw);
+  await tw(dur, k => { look.yaw = y0 + dy * k; look.pitch = lerp(p0, pitch, k); applyLook(); });
 }
 const yawTo = v => Math.atan2(-(v.x - camera.position.x), -(v.z - camera.position.z));
 const pitchTo = v => Math.atan2(v.y - camera.position.y, Math.hypot(v.x - camera.position.x, v.z - camera.position.z));
+const lookAt = (v, dur) => lookTo(yawTo(v), pitchTo(v), dur);
+const mid = (a, b, y = 0) => new THREE.Vector3((a.x + b.x) / 2, y, (a.z + b.z) / 2);
+const BED_TOP = new THREE.Vector3(BED.x, BED.y, BED.z);
 
+/* =====================================================================
+   STAGES: each `target` in actions.csv maps to one behaviour here
+   ===================================================================== */
 const BEHAVIOURS = {
-  async seedling(a) {
-    await lookTo(yawTo(new THREE.Vector3((standL.x + BED.x) / 2, 0, (standL.z + BED.z) / 2)), -0.55);
-    await waitTap(a.id, [seedling], new THREE.Vector3(standL.x, 0.75, standL.z));
-    const from = seedling.position.clone(), to = new THREE.Vector3(BED.x, BED.y + 0.08, BED.z);
-    await tw(1.6, k => { seedling.position.lerpVectors(from, to, k); seedling.position.y += Math.sin(k * Math.PI) * 0.35; });
-    await tw(0.5, k => { seedling.position.y = lerp(to.y, BED.y - 0.02, k); });
+  /* 序：久在樊籠裡，復得返自然 */
+  async gate(a) {
+    await waitTap(a.id, gate, new THREE.Vector3(0, 0.03, 5.25));
+    oneShot('creak');
+    log('gate_open', a.id);
+    setScape('garden', 5);
+    await tw(2.2, k => { gate[0].rotation.y = 1.55 * k; gate[1].rotation.y = -1.55 * k; });
+    say('');
+    const from = camera.position.clone();
+    const steps = setInterval(() => oneShot('step'), 620);
+    await tw(4.2, k => { camera.position.lerpVectors(from, STAND, k); camera.position.y += Math.sin(k * Math.PI * 7) * 0.012; });
+    clearInterval(steps);
+    await lookAt(BED_TOP, 1.6);
   },
-  async can(a) {
-    await lookTo(yawTo(new THREE.Vector3((standR.x + BED.x) / 2, 0, (standR.z + BED.z) / 2)), -0.55);
-    await waitTap(a.id, [can], new THREE.Vector3(standR.x, 0.78, standR.z));
-    const from = can.position.clone(), over = new THREE.Vector3(BED.x - 0.32, 0.72, BED.z);
+
+  /* 晨：晨興理荒穢 */
+  async weeds(a) {
+    await lookAt(BED_TOP, 1.2);
+    const left = () => weeds.filter(w => !w.userData.pulled);
+    while (left().length) {
+      say(`${a.instruction}（還剩 ${left().length} 叢）`);
+      const next = left()[0];
+      const obj = await waitTap(a.id, left(), new THREE.Vector3(next.position.x, next.position.y + 0.01, next.position.z));
+      const w = weeds.find(x => isInside(obj, x));
+      w.userData.pulled = true;
+      log('weed_pulled', a.id, weeds.indexOf(w));
+      oneShot('pull');
+      const y0 = w.position.y;
+      await tw(0.7, k => { w.position.y = y0 + k * 0.35; w.rotation.z = k * 0.6; const s = 1 - k * 0.85; w.scale.set(s, s, s); });
+      w.visible = false;
+    }
+    say('');
+    await wait(600);
+  },
+
+  /* 午：種豆南山下 */
+  async sow(a) {
+    await lookAt(mid(standL, BED, 0.3), 1.4);
+    await waitTap(a.id, [pouch], new THREE.Vector3(standL.x, 0.47, standL.z));
+    const home = pouch.position.clone();
+    for (const [i, h] of HOLES.entries()) {
+      const from = pouch.position.clone(), over = new THREE.Vector3(h.x - 0.02, BED.y + 0.32, h.z);
+      await tw(i ? 0.6 : 1.2, k => { pouch.position.lerpVectors(from, over, k); pouch.position.y += Math.sin(k * Math.PI) * (i ? 0.03 : 0.15); pouch.rotation.z = k * 0.9; });
+      const b = beans[i], b0 = new THREE.Vector3(over.x + 0.08, over.y + 0.14, over.z);
+      oneShot('seed');
+      await tw(0.45, k => { b.position.set(lerp(b0.x, h.x, k), lerp(b0.y, h.y + 0.012, k * k), lerp(b0.z, h.z, k)); }, k => k);
+      log('bean_sown', a.id, i);
+    }
+    const end = pouch.position.clone();
+    await tw(1.0, k => { pouch.position.lerpVectors(end, home, k); pouch.rotation.z = lerp(0.9, 0, k); });
+
+    say(a.instruction_2 || '點一下澆水壺，替豆子澆水。');
+    await lookAt(mid(standR, BED, 0.3), 1.4);
+    await waitTap(a.id + '_water', [can], new THREE.Vector3(standR.x, 0.47, standR.z));
+    const from = can.position.clone(), over = new THREE.Vector3(BED.x - 0.34, 0.74, BED.z);
     const r0 = can.rotation.y;
     await tw(1.4, k => { can.position.lerpVectors(from, over, k); can.rotation.y = lerp(r0, 0, k); });
     await tw(0.6, k => { can.rotation.z = lerp(0, -0.55, k); });
     G.water.on = true; drops.visible = true; waterSound(true);
-    leaves.forEach(l => { l.visible = true; l.scale.set(0.01, 0.01, 0.01); });
-    await tw(3.2, k => {
-      const s = 1 + k * 1.3;
-      sprout.scale.set(s, s, s);
-      leaves.forEach(l => l.scale.set(1.2 * k, 0.28 * k, 0.6 * k));
+    log('watered', a.id);
+    sprouts.forEach(s => { s.visible = true; });
+    await tw(3.4, k => {
+      sprouts.forEach((s, i) => { const kk = THREE.MathUtils.clamp(k * 1.4 - i * 0.2, 0, 1); s.scale.setScalar(Math.max(0.001, kk)); });
+      over.x = BED.x - 0.34 + Math.sin(k * Math.PI * 2) * 0.12; can.position.x = over.x;
     });
     G.water.on = false; waterSound(false);
     await tw(0.6, k => { can.rotation.z = lerp(-0.55, 0, k); });
     await wait(400);
     drops.visible = false;
-    await tw(1.2, k => { can.position.lerpVectors(over, from, k); can.rotation.y = lerp(0, r0, k); });
+    const back = can.position.clone();
+    await tw(1.2, k => { can.position.lerpVectors(back, from, k); can.rotation.y = lerp(0, r0, k); });
   },
-  async flower(a) {
-    const first = flowers[1].g.getWorldPosition(new THREE.Vector3());
-    await lookTo(yawTo(first) - 0.15, -0.3);
-    const target = flowers[2].g.getWorldPosition(new THREE.Vector3());
-    const obj = await waitTap(a.id, flowers.filter(f => !f.picked).map(f => f.g), new THREE.Vector3(target.x, 0.95, target.z));
-    const f = flowers.find(x => isInside(obj, x.g));
-    f.picked = true;
-    log('flower_picked', a.id, flowers.indexOf(f));
-    const head = f.head;
-    const start = head.getWorldPosition(new THREE.Vector3());
-    scene.attach(head);
-    const end = camera.localToWorld(new THREE.Vector3(0.18, -0.25, -0.9));
-    await tw(1.6, k => { head.position.lerpVectors(start, end, k); head.rotation.x = lerp(0.5, 1.4, k); });
-    await wait(500);
-    await tw(0.8, k => { const s = 1 - k; head.scale.set(s, s, s); });
-    head.visible = false;
-    // 悠然見南山: turn slowly towards the mountain and linger
-    log('view_mountain', a.id);
-    await lookTo(yawTo(MOUNTAIN), pitchTo(new THREE.Vector3(MOUNTAIN.x, 4, MOUNTAIN.z)), 3.5);
-    await wait(2500);
+
+  /* 暮：帶月荷鋤歸，道狹草木長 */
+  async hoe(a) {
+    await lookAt(new THREE.Vector3(hoe.position.x, 0.5, hoe.position.z), 1.4);
+    await waitTap(a.id, [hoe], new THREE.Vector3(hoe.position.x, 0.03, hoe.position.z + 0.12));
+    log('hoe_taken', a.id);
+    camera.attach(hoe);
+    const p0 = hoe.position.clone(), q0 = hoe.quaternion.clone();
+    const p1 = new THREE.Vector3(0.34, -1.05, -0.75), q1 = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.55, 0.2, -0.55));
+    await tw(1.3, k => { hoe.position.lerpVectors(p0, p1, k); hoe.quaternion.slerpQuaternions(q0, q1, k); });
+
+    say('沿著小徑，慢慢走回家。');
+    locked = true;
+    const pts = [[0, 3.6], [-0.7, 3.05], [-1.55, 2.25], [-2.25, 0.5], [-2.1, -2], [-1.7, -4.3], [-1.5, -5.6]];
+    const curve = new THREE.CatmullRomCurve3(pts.map(([x, z]) => new THREE.Vector3(x, 1.42, z)));
+    const dur = 15;
+    log('walk_start', a.id);
+    G.setEnv('night', dur - 1);
+    const y0 = look.yaw, p0p = look.pitch;
+    const steps = setInterval(() => oneShot('step'), 640);
+    await tw(dur, k => {
+      const p = curve.getPointAt(k), ahead = curve.getPointAt(Math.min(1, k + 0.05));
+      camera.position.copy(p);
+      camera.position.y += Math.sin(k * dur * Math.PI * 1.6) * 0.014;
+      const want = Math.atan2(-(ahead.x - p.x), -(ahead.z - p.z));
+      const blendIn = Math.min(1, k * 6);
+      look.yaw = (k < 0.98 ? y0 + angDiff(y0, want) * blendIn : look.yaw);
+      look.pitch = lerp(p0p, 0.02, Math.min(1, k * 4));
+      applyLook();
+    }, k => k);
+    clearInterval(steps);
+    log('walk_end', a.id);
+    setScape('night', 4);
+    locked = false;
+    await lookTo(yawTo(HUT), 0.2, 2.2);
+    say('');
+    await wait(1200);
+  },
+
+  /* 結：夕露沾我衣 */
+  async linger(a) {
+    await lookTo(look.yaw + Math.PI, -0.32, 3.2);
+    await tw(3, k => { dewMat.uniforms.strength.value = k; });
+    const t0 = now();
+    await new Promise(resolve => {
+      card.innerHTML = `<p class="eyebrow">${esc(a.name)}</p><p class="lede">${esc(a.instruction)}</p><button class="ghost" id="lok" type="button" hidden>好了</button>`;
+      panel.hidden = false;
+      setTimeout(() => { const b = $('#lok'); if (b) { b.hidden = false; b.focus(); } }, 8000);
+      $('#lok').addEventListener('click', () => { panel.hidden = true; resolve(); });
+    });
+    log('linger', a.id, now() - t0);
+    say('');
   },
 };
 
@@ -309,30 +460,32 @@ async function runSession() {
   state.t0 = performance.now();
   state.running = true;
   log('session_start', '', new Date().toISOString());
+  log('soundscape', 'city');
   viewTimer = setInterval(() => log('view', '', `${look.yaw.toFixed(2)};${look.pitch.toFixed(2)}`), 1000);
   $('#hud').hidden = false;
 
   const pre = state.questions.filter(q => q.phase === 'pre');
   const post = state.questions.filter(q => q.phase === 'post');
   $('#step').textContent = '開始之前';
-  $('#instruction').textContent = '先感受一下此刻的自己。';
+  say('先感受一下此刻的自己。');
   await askSliders(pre, '開始之前');
 
   for (const [i, a] of state.actions.entries()) {
     $('#step').textContent = `第 ${i + 1} / ${state.actions.length} 段・${a.name}`;
-    $('#instruction').textContent = a.instruction;
+    say(a.instruction);
     log('action_start', a.id);
+    if (a.time_of_day) G.setEnv(a.time_of_day, 6);
     const run = BEHAVIOURS[a.target];
     if (run) await run(a);
     else console.warn(`actions.csv: unknown target "${a.target}" for ${a.id}`);
     log('action_complete', a.id);
-    $('#instruction').textContent = '';
+    say('');
     await showPoem(a);
     await askSliders([{ id: 'relax_after_' + a.id, text: a.rating_prompt || '此刻你有多放鬆？', min: 0, max: 10, min_label: '完全不放鬆', max_label: '非常放鬆' }], a.name + '之後');
   }
 
   $('#step').textContent = '結束';
-  $('#instruction').textContent = '最後，回想剛才在小園裡的體驗。';
+  say('最後，回想剛才在園子裡的這一天。');
   await askSliders(post, '體驗之後');
   log('session_end');
   clearInterval(viewTimer);
@@ -342,30 +495,30 @@ async function runSession() {
 }
 
 /* =====================================================================
-   RESULT: relaxation over the session, with each action marked
+   RESULT: relaxation over the session, with each stage marked
    ===================================================================== */
 function showResult() {
   const ratings = state.log.filter(e => e.type === 'rating');
   const relax = ratings.filter(e => e.id.startsWith('relax'));
   const done = state.log.filter(e => e.type === 'action_complete');
   const end = state.log.at(-1).t || 1;
-  const W = 600, H = 300, L = 52, R = 56, T = 36, B = 48;
+  const W = 640, H = 300, L = 52, R = 60, T = 36, B = 48;
   const X = t => L + (t / end) * (W - L - R), Y = v => T + (1 - v / 10) * (H - T - B);
   const label = id => {
     if (id === 'relax_pre') return '開始前';
     if (id === 'relax_post') return '結束時';
     const a = state.actions.find(x => 'relax_after_' + x.id === id);
-    return a ? a.name + '後' : id;
+    return a ? a.name : id;
   };
   const name = id => (state.actions.find(a => a.id === id) || {}).name || id;
   const pts = relax.map(e => [X(e.t), Y(Number(e.value))]);
   const svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="放鬆程度隨活動進行的變化">
     ${[0, 2, 4, 6, 8, 10].map(v => `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="rgba(34,48,42,.1)"/><text x="${L - 10}" y="${Y(v) + 4}" text-anchor="end" font-size="13" fill="#55665c">${v}</text>`).join('')}
     <text x="14" y="${T + (H - T - B) / 2}" font-size="12" fill="#55665c" transform="rotate(-90 14 ${T + (H - T - B) / 2})" text-anchor="middle">放鬆程度（0–10）</text>
-    ${done.map(e => `<line x1="${X(e.t)}" x2="${X(e.t)}" y1="${T}" y2="${H - B}" stroke="#b5762a" stroke-dasharray="4 4"/><text x="${X(e.t)}" y="${H - B + 18}" text-anchor="middle" font-size="13" fill="#b5762a">${esc(name(e.id))}</text>`).join('')}
+    ${done.map((e, i) => `<line x1="${X(e.t)}" x2="${X(e.t)}" y1="${T}" y2="${H - B}" stroke="#b5762a" stroke-dasharray="4 4"/><text x="${X(e.t)}" y="${H - B + (i % 2 ? 34 : 18)}" text-anchor="middle" font-size="13" fill="#b5762a">${esc(name(e.id))}</text>`).join('')}
     <polyline points="${pts.map(p => p.join(',')).join(' ')}" fill="none" stroke="#3d6b52" stroke-width="2.5"/>
     ${relax.map((e, i) => `<circle cx="${pts[i][0]}" cy="${pts[i][1]}" r="5" fill="#3d6b52"/><text x="${pts[i][0]}" y="${pts[i][1] + (i % 2 ? 24 : -12)}" text-anchor="middle" font-size="13" font-weight="500" fill="#22302a">${esc(label(e.id))} ${e.value}</text>`).join('')}
-    <text x="${W - R}" y="${H - 8}" text-anchor="end" font-size="12" fill="#55665c">經過時間 ${Math.round(end / 1000)} 秒</text>
+    <text x="${W - R}" y="${T - 14}" text-anchor="end" font-size="12" fill="#55665c">經過時間 ${Math.round(end / 1000)} 秒</text>
   </svg>`;
   $('#timeline').innerHTML = svg;
   const extra = ratings.filter(e => e.id.startsWith('prs_'));
@@ -404,7 +557,7 @@ $('#start').addEventListener('click', () => {
 loadData().then(() => {
   const b = $('#start');
   b.disabled = false;
-  b.textContent = '走進小園';
+  b.textContent = '推開柴門';
 }).catch(err => {
   console.error(err);
   const e = $('#load-error');
