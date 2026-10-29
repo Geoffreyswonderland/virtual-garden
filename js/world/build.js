@@ -14,6 +14,7 @@ const twig = surface('bark', { repeat: 1, color: 0xb8a58a, roughness: 1 });
 const wall = surface('earthwall', { repeat: 1, roughness: 1 });
 const thatchMat = surface('thatch', { repeat: 1, roughness: 1, normalScale: 1.5, color: 0xfff2d6 });
 const soilMat = surface('soil', { repeat: 1, roughness: 1, normalScale: 1.4 });
+const rootMat = std(0xb59b78, { roughness: 1 });
 const stone = surface('dirt', { repeat: 1, color: 0xa39c90, roughness: 0.95 });
 
 /** box with texture coordinates in metres, so textures keep their scale */
@@ -284,13 +285,35 @@ function vegBed(scene) {
       c.rotation.y = k * Math.PI / 3 + srand();
       c.customDepthMaterial = weedDepth;
     }
+    // roots, hidden under the soil until the weed is pulled up
+    for (let k = 0; k < 7; k++) {
+      const len = srange(0.12, 0.24);
+      const root = mesh(new THREE.CylinderGeometry(0.002, 0.007, len, 4), rootMat, srange(-0.03, 0.03), -len / 2 + 0.01, srange(-0.03, 0.03), wg, { receive: false });
+      root.rotation.set(srange(-0.6, 0.6), 0, srange(-0.6, 0.6));
+    }
+    // a clump of soil around the base comes up with it
+    const clod = mesh(new THREE.SphereGeometry(0.06, 10, 6), soilMat, 0, -0.01, 0, wg, { receive: false });
+    clod.scale.set(1.2, 0.6, 1.2);
     // an invisible, easier-to-tap volume
     const hit = mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.6, 8), new THREE.MeshBasicMaterial({ visible: false }), 0, 0.3, 0, wg, { cast: false, receive: false });
     hit.userData.hit = true;
+    wg.userData.y0 = wg.position.y;
     scene.add(wg);
     return wg;
   });
-  return weeds;
+  // a bamboo basket at the end of the bed for the pulled weeds
+  const bx = x + w / 2 + 0.25, bz = z + d / 2 + 0.45;
+  const basket = new THREE.Group();
+  const weave = std(0xb39a66, { map: tex('thatch.jpg'), roughness: 1, side: THREE.DoubleSide });
+  mesh(new THREE.CylinderGeometry(0.3, 0.22, 0.34, 20, 1, true), weave, 0, 0.17, 0, basket);
+  mesh(new THREE.CircleGeometry(0.22, 18), weave, 0, 0.01, 0, basket).rotation.x = -Math.PI / 2;
+  const rim = mesh(new THREE.TorusGeometry(0.3, 0.018, 6, 24), std(0x8a6f45), 0, 0.34, 0, basket);
+  rim.rotation.x = Math.PI / 2;
+  basket.position.set(bx, 0, bz);
+  scene.add(basket);
+  circleColliders.push([bx, bz, 0.35]);
+  contactShadow(scene, bx, bz, 0.45, 0.6);
+  return { weeds, weedBasket: basket };
 }
 
 /* ================================================================ bean field */
@@ -436,9 +459,9 @@ export function buildStructures(scene) {
   const hutParts = hut(scene);
   const gate = fence(scene);
   eastFence(scene);
-  const weeds = vegBed(scene);
+  const { weeds, weedBasket } = vegBed(scene);
   const field = beanField(scene);
   const t = tools(scene);
   const water = pond(scene);
-  return { ...hutParts, gate, weeds, ...field, ...t, water };
+  return { ...hutParts, gate, weeds, weedBasket, ...field, ...t, water };
 }

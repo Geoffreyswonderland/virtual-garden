@@ -1,8 +1,8 @@
 import * as THREE from 'three';
-import { parseCSV } from './csv.js?v=12';
-import { createWorld } from './world/index.js?v=13';
-import { createControls } from './controls.js?v=12';
-import { audioInit, setScape, oneShot, waterSound, toggleSound } from './audio.js?v=12';
+import { parseCSV } from './csv.js?v=14';
+import { createWorld } from './world/index.js?v=14';
+import { createControls } from './controls.js?v=14';
+import { audioInit, setScape, oneShot, waterSound, toggleSound } from './audio.js?v=14';
 import { L, PATHS, APPROACH, EYE } from './world/layout.js';
 import { pathDist } from './world/grass.js';
 
@@ -16,6 +16,7 @@ const $ = s => document.querySelector(s);
 const state = { actions: [], questions: [], log: [], t0: 0, running: false, stage: -1, autoWalks: 0, gateOpen: false, trail: [] };
 const now = () => Math.round(performance.now() - state.t0);
 const log = (type, id = '', value = '') => state.log.push({ t: now(), type, id, value: String(value) });
+const hooks = new Set();   // per-frame callbacks used by stages
 
 async function loadData() {
   const get = u => fetch(u, { cache: 'no-store' }).then(r => { if (!r.ok) throw new Error(u); return r.text(); });
@@ -85,6 +86,30 @@ drops.frustumCulled = false;
 drops.visible = false;
 scene.add(drops);
 const pour = { on: false, from: new THREE.Vector3(), to: new THREE.Vector3() };
+// soil crumbs flying up when a weed comes out
+const CR = 60, crumbGeo = new THREE.BufferGeometry(), crumbVel = new Float32Array(CR * 3);
+crumbGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(CR * 3).fill(-10), 3));
+const crumbs = new THREE.Points(crumbGeo, new THREE.PointsMaterial({ color: 0x4a3526, size: 0.025 }));
+crumbs.frustumCulled = false;
+scene.add(crumbs);
+function burst(p) {
+  const a = crumbGeo.attributes.position.array;
+  for (let i = 0; i < CR; i++) {
+    a[i * 3] = p.x + (Math.random() - 0.5) * 0.08; a[i * 3 + 1] = p.y + 0.02; a[i * 3 + 2] = p.z + (Math.random() - 0.5) * 0.08;
+    crumbVel[i * 3] = (Math.random() - 0.5) * 1.2; crumbVel[i * 3 + 1] = 0.6 + Math.random() * 1.2; crumbVel[i * 3 + 2] = (Math.random() - 0.5) * 1.2;
+  }
+  crumbGeo.attributes.position.needsUpdate = true;
+}
+hooks.add(dt => {
+  const a = crumbGeo.attributes.position.array;
+  for (let i = 0; i < CR; i++) {
+    if (a[i * 3 + 1] < -5) continue;
+    crumbVel[i * 3 + 1] -= 9.8 * dt;
+    a[i * 3] += crumbVel[i * 3] * dt; a[i * 3 + 1] += crumbVel[i * 3 + 1] * dt; a[i * 3 + 2] += crumbVel[i * 3 + 2] * dt;
+    if (a[i * 3 + 1] < 0.12 && crumbVel[i * 3 + 1] < 0) a[i * 3 + 1] = -10;
+  }
+  crumbGeo.attributes.position.needsUpdate = true;
+});
 function updateDrops(dt) {
   const p = dropGeo.attributes.position.array;
   for (let i = 0; i < DROPS; i++) {
@@ -110,7 +135,6 @@ const ease = k => (k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2);
 const tw = (dur, fn, curve = ease) => new Promise(done => tweens.push({ t: 0, dur, fn, curve, done }));
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const lerp = (a, b, k) => a + (b - a) * k;
-const hooks = new Set();   // per-frame callbacks used by stages
 
 const DEBUG = new URLSearchParams(location.search).has('debug');
 const clock = new THREE.Clock();
@@ -327,7 +351,84 @@ function updateNear() {
     if (best) { act.textContent = best.label; act.style.fontSize = best.label.length > 2 ? '15px' : ''; }
   }
 }
-$('#act').addEventListener('click', () => { if (near) use(near); });
+/* ---------- press-and-hold actions (pulling weeds, pouring water) ----------
+   An offer with `hold: seconds` must be held, on the round button, on the
+   thing itself, or with the space bar. `onProgress(p, t)` animates it,
+   `onHold(active)` reacts to pressing and letting go, `decay` (default
+   true) lets the progress slide back if the person lets go too early. */
+const holdSt = { item: null, p: 0, active: false, t0: 0, src: '' };
+const actEl = $('#act');
+function startHold(item, src) {
+  if (!item.hold) { use(item); return; }
+  if (holdSt.item && holdSt.item !== item) return;
+  Object.assign(holdSt, { item, active: true, t0: now(), src });
+  controls.st.lookLock = true;
+  actEl.classList.add('holding');
+  item.onHold && item.onHold(true);
+}
+function endHold() {
+  if (!holdSt.active) return;
+  holdSt.active = false;
+  controls.st.lookLock = false;
+  actEl.classList.remove('holding');
+  const it = holdSt.item;
+  it && it.onHold && it.onHold(false);
+  if (it && holdSt.p < 1) {
+    log('hold_release', it.id + (it.tag !== undefined ? ':' + it.tag : ''), `${(now() - holdSt.t0)};${holdSt.p.toFixed(2)}`);
+    if (it.decay !== false && holdSt.p > 0.08) toast(it.tooShort || '再按久一點');
+  }
+}
+function updateHold(dt, t) {
+  const it = holdSt.item;
+  if (!it) return;
+  // walking away lets go
+  if (holdSt.active && !it.global && flat(it.pos, controls.st.x, controls.st.z) > (it.reach || 2.2) * 1.35) endHold();
+  if (holdSt.active) holdSt.p = Math.min(1, holdSt.p + dt / it.hold);
+  else if (it.decay !== false) holdSt.p = Math.max(0, holdSt.p - dt * 1.8);
+  it.onProgress && it.onProgress(holdSt.p, t);
+  actEl.style.setProperty('--p', near === it ? holdSt.p : 0);
+  if (holdSt.p >= 1) {
+    holdSt.active = false; holdSt.item = null; holdSt.p = 0;
+    controls.st.lookLock = false;
+    actEl.classList.remove('holding');
+    actEl.style.setProperty('--p', 0);
+    log('hold_done', it.id + (it.tag !== undefined ? ':' + it.tag : ''), now() - holdSt.t0);
+    use(it);
+  } else if (!holdSt.active && holdSt.p === 0 && it.decay !== false) holdSt.item = null;
+}
+hooks.add(updateHold);
+actEl.addEventListener('pointerdown', e => { e.preventDefault(); if (near) startHold(near, 'button'); });
+['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => actEl.addEventListener(ev, endHold));
+actEl.addEventListener('keydown', e => { if ((e.code === 'Enter' || e.code === 'Space') && near) { e.preventDefault(); startHold(near, 'key'); } });
+window.addEventListener('keydown', e => { if (e.code === 'Space' && !e.repeat && near && controls.enabled && !e.target.closest?.('button, input')) { e.preventDefault(); startHold(near, 'key'); } });
+window.addEventListener('keyup', e => { if (e.code === 'Space' || e.code === 'Enter') endHold(); });
+window.addEventListener('pointerup', endHold);
+window.addEventListener('blur', endHold);
+// pressing on the thing itself starts the hold too
+canvas.addEventListener('pointerdown', e => {
+  if (!controls.enabled || !offers.some(o => o.hold)) return;
+  const it = pickOffer(e.clientX, e.clientY);
+  if (it && it.hold && !it.global && flat(it.pos, controls.st.x, controls.st.z) <= (it.reach || 2.2) * 1.3) startHold(it, 'touch');
+});
+function pickOffer(cx, cy) {
+  const r = canvas.getBoundingClientRect();
+  raycaster.setFromCamera(new THREE.Vector2(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1), camera);
+  const objs = offers.filter(o => o.obj).flatMap(o => (Array.isArray(o.obj) ? o.obj : [o.obj]));
+  const hit = objs.length ? raycaster.intersectObjects(objs, true)[0] : null;
+  return hit ? offers.find(o => o.obj && (Array.isArray(o.obj) ? o.obj : [o.obj]).some(g => { for (let n = hit.object; n; n = n.parent) if (n === g) return true; return false; })) : null;
+}
+/** a free spot within reach of a thing, as close to the player as possible */
+function approachPoint(item) {
+  const reach = item.reach || 2.2;
+  let best = null, bd = 1e9;
+  for (const rr of [0.55, 0.7, 0.85]) for (let i = 0; i < 32; i++) {
+    const a = (i / 32) * Math.PI * 2, x = item.pos.x + Math.cos(a) * reach * rr, z = item.pos.z + Math.sin(a) * reach * rr;
+    if (!controls.free(x, z)) continue;
+    const d = Math.hypot(x - controls.st.x, z - controls.st.z);
+    if (d < bd) { bd = d; best = [x, z]; }
+  }
+  return best;
+}
 const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), groundHit = new THREE.Vector3();
 const destRing = new THREE.Mesh(new THREE.RingGeometry(0.16, 0.22, 32), new THREE.MeshBasicMaterial({ color: 0xfff2d0, transparent: true, opacity: 0.8, depthWrite: false, side: THREE.DoubleSide }));
 destRing.rotation.x = -Math.PI / 2;
@@ -341,25 +442,26 @@ function walkToPoint(x, z, kind) {
 }
 function handleTap(cx, cy) {
   if (!controls.enabled) return;
-  const r = canvas.getBoundingClientRect();
-  raycaster.setFromCamera(new THREE.Vector2(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1), camera);
   // 1. something we can use?
-  const objs = offers.filter(o => o.obj).flatMap(o => (Array.isArray(o.obj) ? o.obj : [o.obj]));
-  const hit = objs.length ? raycaster.intersectObjects(objs, true)[0] : null;
-  const item = hit && offers.find(o => o.obj && (Array.isArray(o.obj) ? o.obj : [o.obj]).some(g => { for (let n = hit.object; n; n = n.parent) if (n === g) return true; return false; }));
+  const item = pickOffer(cx, cy);
   if (item) {
     const d = item.global ? 0 : flat(item.pos, controls.st.x, controls.st.z);
     const reach = item.reach || 2.2;
-    if (d <= reach * 1.3) { use(item); return; }
-    // too far: walk up to it, then use it
-    const k = (d - reach * 0.7) / d;
-    const x = controls.st.x + (item.pos.x - controls.st.x) * k, z = controls.st.z + (item.pos.z - controls.st.z) * k;
-    walkToPoint(x, z, item.id).then(() => {
-      if (offers.includes(item) && flat(item.pos, controls.st.x, controls.st.z) <= reach * 1.3) use(item);
-      else toast('再走近一點');
+    if (d <= reach * 1.3) { if (!item.hold) use(item); return; }   // held things start on press, not on tap
+    // too far: walk to a free spot beside it
+    const spot = approachPoint(item);
+    if (!spot) { toast('從另一邊過去看看'); return; }
+    walkToPoint(spot[0], spot[1], item.id).then(() => {
+      controls.faceTo(item.pos.x, 0.2, item.pos.z, 0.6);
+      if (!offers.includes(item)) return;
+      if (flat(item.pos, controls.st.x, controls.st.z) > reach * 1.3) toast('再走近一點');
+      else if (item.hold) toast(item.holdHint || '按住就可以了');
+      else use(item);
     });
     return;
   }
+  const r = canvas.getBoundingClientRect();
+  raycaster.setFromCamera(new THREE.Vector2(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1), camera);
   // 2. otherwise, walk to the spot on the ground
   if (!raycaster.ray.intersectPlane(groundPlane, groundHit)) return;
   const d = flat(groundHit, controls.st.x, controls.st.z);
@@ -431,21 +533,47 @@ const BEHAVIOURS = {
     walkMode(true);
     let pulled = 0;
     const total = parts.weeds.length;
+    const basket = parts.weedBasket.position;
     while (pulled < total) {
-      setTask(a.name, `${a.task}（${pulled} / ${total}）`);
+      setTask(a.name, `${a.task}（${pulled} / ${total}）　按住，把草連根拔起`);
       const left = parts.weeds.filter(w => !w.userData.pulled);
-      const item = await offer(left.map(w => ({ id: 'weed', tag: parts.weeds.indexOf(w), obj: w, pos: w.position, reach: 2.4, label: '拔草' })));
+      const item = await offer(left.map(w => ({
+        id: 'weed', tag: parts.weeds.indexOf(w), obj: w, pos: w.position, reach: 2.4, label: '按住拔草',
+        hold: 1.3, holdHint: '按住草，或按住右下角的按鈕', tooShort: '根還抓著土，再按久一點',
+        // the weed resists: it trembles and lifts a little as you pull
+        onProgress: (p, t) => {
+          const y0 = w.userData.y0;
+          w.position.y = y0 + p * p * 0.1;
+          w.rotation.x = Math.sin(t * 38) * 0.06 * p;
+          w.rotation.z = Math.sin(t * 31 + 1) * 0.06 * p;
+        },
+        onHold: on => { if (on) oneShot('pull', 0.5); },
+      })));
       const w = item.obj;
       w.userData.pulled = true;
       pulled++;
       if (pulled === 1) beacon.visible = false;
       oneShot('pull');
-      const y0 = w.position.y;
-      tw(0.8, k => { w.position.y = y0 + k * 0.45; w.rotation.z = k * 0.7; const s = 1 - k * 0.9; w.scale.set(s, s, s); }).then(() => { w.visible = false; });
+      burst(w.position);
+      // out it comes, roots and all, then into the basket
+      const from = w.position.clone();
+      const up = from.clone().add(V(0, 0.42, 0));
+      const slot = basket.clone().add(V((Math.random() - 0.5) * 0.18, 0.22 + pulled * 0.03, (Math.random() - 0.5) * 0.18));
+      (async () => {
+        await tw(0.35, k => { w.position.lerpVectors(from, up, k); w.rotation.x = 0; w.rotation.z = k * 0.4; });
+        await wait(250);
+        await tw(0.75, k => {
+          w.position.lerpVectors(up, slot, k);
+          w.position.y += Math.sin(k * Math.PI) * 0.5;
+          w.rotation.z = 0.4 + k * 1.2;
+          const s2 = 1 - k * 0.45; w.scale.set(s2, s2, s2);
+        });
+        oneShot('seed', 0.6);
+      })();
     }
     setTask(a.name, `${a.task}（${total} / ${total}）`);
     setTarget(null);
-    await wait(1200);
+    await wait(1500);
   },
 
   /* 午：種豆南山下 */
@@ -487,20 +615,24 @@ const BEHAVIOURS = {
     setHeld('一瓢水');
     setTarget(center, 'beans');
     setTask(a.name, '把水澆在剛種下的豆子上');
-    await offer([{ id: 'water', obj: [parts.fieldHit, ...parts.holeHits], pos: center, reach: 2.8, label: '澆水' }]);
-    beacon.visible = false;
-    await tw(0.6, k => { parts.ladle.rotation.z = lerp(0, 1.1, k); });
-    parts.ladle.getWorldPosition(pour.from);
-    pour.to.copy(center);
-    pour.on = true; drops.visible = true; waterSound(true);
+    setTask(a.name, '按住，慢慢把水澆在剛種下的豆子上');
     parts.sprouts.forEach(s => { s.visible = true; });
-    await tw(3.6, k => {
-      parts.ladle.getWorldPosition(pour.from);
-      pour.to.set(lerp(parts.holes[0].x, parts.holes[2].x, k), center.y, center.z);
-      parts.sprouts.forEach((s, i) => s.scale.setScalar(Math.max(0.001, Math.min(1, k * 1.5 - i * 0.22))));
-    }, k => k);
+    let tilt = 0;
+    const tiltHook = dt => { tilt += ((pour.on ? 1.1 : 0) - tilt) * Math.min(1, dt * 6); parts.ladle.rotation.z = tilt; if (pour.on) parts.ladle.getWorldPosition(pour.from); };
+    hooks.add(tiltHook);
+    await offer([{
+      id: 'water', obj: [parts.fieldHit, ...parts.holeHits], pos: center, reach: 2.8, label: '按住澆水',
+      hold: 3.6, decay: false, holdHint: '按住田裡，或按住右下角的按鈕',
+      onHold: on => { pour.on = on; drops.visible = true; waterSound(on); if (on) beacon.visible = false; },
+      onProgress: p => {
+        pour.to.set(lerp(parts.holes[0].x, parts.holes[2].x, p), center.y, center.z);
+        parts.sprouts.forEach((s, i) => s.scale.setScalar(Math.max(0.001, Math.min(1, p * 1.5 - i * 0.22))));
+      },
+    }]);
     pour.on = false; waterSound(false);
-    await tw(0.5, k => { parts.ladle.rotation.z = lerp(1.1, 0, k); });
+    await wait(500);
+    hooks.delete(tiltHook);
+    parts.ladle.rotation.z = 0;
     setTimeout(() => { drops.visible = false; }, 700);
     await putDown(parts.ladle, ladleHome, [ladleRot.x, ladleRot.y, ladleRot.z]);
     setHeld('');
@@ -724,4 +856,4 @@ loadData().then(() => { dataReady = true; ready(); }).catch(err => {
 });
 
 // for automated checks: ?debug=1 exposes a few internals
-if (new URLSearchParams(location.search).has('debug')) window.__vg = { state, controls, get offers() { return offers; }, use, W };
+if (new URLSearchParams(location.search).has('debug')) window.__vg = { state, controls, get offers() { return offers; }, use, W, hooks, holdSt, startHold, endHold, approachPoint, parts };

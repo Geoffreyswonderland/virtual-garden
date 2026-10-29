@@ -73,6 +73,11 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--gold); outl
 
 #act { position: absolute; right: calc(28px + env(safe-area-inset-right, 0px)); bottom: calc(var(--safe-b) + 40px); width: 96px; height: 96px; border-radius: 50%; border: 2px solid var(--gold);
   background: radial-gradient(circle at 40% 35%, #3f7462, var(--jade-deep)); color: var(--paper); font-family: var(--serif); font-weight: 900; font-size: 19px; letter-spacing: 0.08em; box-shadow: 0 0 0 5px rgba(20, 24, 22, 0.6), 0 0 26px rgba(160, 220, 190, 0.35); animation: breathe 2.2s ease-in-out infinite; }
+#act { --p: 0; touch-action: none; }
+#act::after { content: ""; position: absolute; inset: -9px; border-radius: 50%; pointer-events: none;
+  background: conic-gradient(#f4dc9c calc(var(--p) * 1turn), rgba(255, 255, 255, 0.08) 0);
+  -webkit-mask: radial-gradient(circle, transparent 60%, #000 62%); mask: radial-gradient(circle, transparent 60%, #000 62%); }
+#act.holding { animation: none; transform: scale(0.95); }
 @keyframes breathe { 50% { box-shadow: 0 0 0 5px rgba(20, 24, 22, 0.6), 0 0 36px rgba(170, 235, 200, 0.6); } }
 
 #edge { position: absolute; width: 64px; height: 64px; margin: -32px 0 0 -32px; display: grid; place-items: center; pointer-events: none; }

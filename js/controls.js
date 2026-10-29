@@ -101,6 +101,7 @@ export function createControls({ camera, canvas, colliders, isWalkable, onTap, o
     const l = looks.get(e.pointerId);
     if (!l) return;
     l.moved = Math.max(l.moved, Math.hypot(e.clientX - l.sx, e.clientY - l.sy));
+    if (st.lookLock) return;   // holding something: the hand is busy
     if (!l.dragging && l.moved > 4) { l.dragging = true; l.x = l.sx; l.y = l.sy; }   // keep the first few pixels too
     if (!l.dragging) return;
     const dx = e.clientX - l.x, dy = e.clientY - l.y;
