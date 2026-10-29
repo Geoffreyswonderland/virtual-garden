@@ -324,7 +324,7 @@ function updateNear() {
     near = best;
     const act = $('#act');
     act.hidden = !best;
-    if (best) act.textContent = best.label;
+    if (best) { act.textContent = best.label; act.style.fontSize = best.label.length > 2 ? '15px' : ''; }
   }
 }
 $('#act').addEventListener('click', () => { if (near) use(near); });
