@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { parseCSV } from './csv.js?v=7';
-import { createGarden } from './garden.js?v=7';
+import { parseCSV } from './csv.js?v=8';
+import { createGarden } from './garden.js?v=8';
 
 /* =====================================================================
    STATE AND EVENT LOG
@@ -352,11 +352,11 @@ const BEHAVIOURS = {
       log('weed_pulled', a.id, weeds.indexOf(w));
       oneShot('pull');
       const y0 = w.position.y;
-      await tw(0.7, k => { w.position.y = y0 + k * 0.35; w.rotation.z = k * 0.6; const s = 1 - k * 0.85; w.scale.set(s, s, s); });
-      w.visible = false;
+      // not awaited, so a quick hand can keep pulling while the last clump lifts away
+      tw(0.7, k => { w.position.y = y0 + k * 0.35; w.rotation.z = k * 0.6; const s = 1 - k * 0.85; w.scale.set(s, s, s); }).then(() => { w.visible = false; });
     }
     say('');
-    await wait(600);
+    await wait(1200);
   },
 
   /* 午：種豆南山下 */
@@ -380,6 +380,7 @@ const BEHAVIOURS = {
     await waitTap(a.id + '_water', [can], new THREE.Vector3(standR.x, 0.47, standR.z));
     const from = can.position.clone(), over = new THREE.Vector3(BED.x - 0.34, 0.74, BED.z);
     const r0 = can.rotation.y;
+    lookAt(new THREE.Vector3(BED.x - 0.1, BED.y + 0.15, BED.z), 1.6);
     await tw(1.4, k => { can.position.lerpVectors(from, over, k); can.rotation.y = lerp(r0, 0, k); });
     await tw(0.6, k => { can.rotation.z = lerp(0, -0.55, k); });
     G.water.on = true; drops.visible = true; waterSound(true);
