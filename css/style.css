@@ -49,14 +49,14 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--amber); out
 
 /* poem: vertical, right to left, fading in over the garden */
 #poem-box {
-  position: fixed; top: 50%; right: clamp(16px, 8vw, 96px); transform: translateY(-50%);
+  position: fixed; top: calc(env(safe-area-inset-top, 0px) + 72px); right: clamp(12px, 6vw, 80px);
   display: flex; flex-direction: row-reverse; align-items: flex-start; gap: 18px;
   padding: 28px 22px; border-radius: 14px;
   background: radial-gradient(ellipse at center, rgba(250, 247, 238, 0.78), rgba(250, 247, 238, 0.42) 70%, rgba(250, 247, 238, 0));
   opacity: 0; transition: opacity 1.8s ease; pointer-events: none;
 }
 #poem-box.on { opacity: 1; pointer-events: auto; }
-.poem-lines { writing-mode: vertical-rl; display: flex; flex-direction: column; gap: 14px; font-family: var(--poem); font-size: clamp(26px, 4.4vh, 40px); letter-spacing: .32em; color: #1f2a24; text-shadow: 0 0 18px rgba(255, 252, 240, .9); }
+.poem-lines { writing-mode: vertical-rl; display: flex; flex-direction: column; gap: 14px; font-family: var(--poem); font-size: clamp(24px, 3.8vh, 38px); letter-spacing: .32em; color: #1f2a24; text-shadow: 0 0 18px rgba(255, 252, 240, .9); }
 .poem-src, .poem-note { writing-mode: vertical-rl; margin: 0; font-family: var(--poem); font-size: 15px; letter-spacing: .2em; color: var(--ink-soft); }
 .poem-note { color: var(--jade); }
 #pok { writing-mode: horizontal-tb; align-self: flex-end; }
@@ -74,7 +74,7 @@ button.ghost { background: rgba(255, 255, 255, .7); }
 
 /* result */
 .chart { width: 100%; overflow-x: auto; }
-.chart svg { display: block; width: 100%; height: auto; min-width: 480px; }
+.chart svg { display: block; width: 100%; height: auto; }
 #post-scores { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
 .score { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; font-size: 13px; color: var(--ink-soft); }
 .score b { display: block; font-size: 20px; color: var(--ink); font-variant-numeric: tabular-nums; }

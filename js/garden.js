@@ -235,7 +235,7 @@ export function createGarden(canvas) {
     scene.add(g);
     canopies.push({ crown, phase: srange(0, 6) });
   }
-  tree(-2.9, -4.4, 1.35, 0.01); tree(-5.8, 0.4, 1.1, -0.02); tree(3.9, -5.8, 1.5, 0); tree(-0.6, -8.2, 1.7, 0.02);
+  tree(-2.9, -4.4, 1.35, 0.01); tree(-5.8, 0.4, 1.1, -0.02); tree(6.2, -7.2, 1.5, 0); tree(-2.4, -9.2, 1.7, 0.02);
   tree(6.8, -2.0, 1.2, -0.01); tree(-7.5, -5.5, 1.6, 0.015); tree(-10, -1, 1.3, 0); tree(9.5, -8, 1.8, 0.02);
 
   /* ---------- far hills and the southern mountain (南山) ---------- */
@@ -264,11 +264,11 @@ export function createGarden(canvas) {
 
   /* ---------- stepping-stone path and pond ---------- */
   const stoneMat = std(0x8f897c, { roughness: 0.95 });
-  for (let i = 0; i < 8; i++) {
+  for (let i = 1; i < 8; i++) {
     const st = add(jitter(new THREE.CylinderGeometry(0.34, 0.38, 0.08, 10), 0.25), stoneMat, Math.sin(i * 1.3) * 0.22 - 0.2, 0.03, 2.75 - i * 0.78);
     st.rotation.y = i * 1.7;
   }
-  const pond = add(new THREE.CircleGeometry(1.75, 48), std(0x1f3a37, { roughness: 0.12, metalness: 0, envMapIntensity: 0.9 }), -3.4, 0.02, -1.8, scene, false, true);
+  const pond = add(new THREE.CircleGeometry(1.75, 48), std(0x1f3a37, { roughness: 0.28, metalness: 0, envMapIntensity: 0.9 }), -3.4, 0.02, -1.8, scene, false, true);
   pond.rotation.x = -Math.PI / 2;
   const rockMat = std(0x8f8a7c, { roughness: 0.95 });
   for (let i = 0; i < 18; i++) {
@@ -380,11 +380,14 @@ export function createGarden(canvas) {
   const seedling = new THREE.Group();
   add(new THREE.CylinderGeometry(0.065, 0.05, 0.09, 14), std(0x9b5f3c, { roughness: 0.8 }), 0, 0.045, 0, seedling);
   add(new THREE.CylinderGeometry(0.06, 0.06, 0.01, 14), std(0x3a281b), 0, 0.088, 0, seedling);
-  add(new THREE.CylinderGeometry(0.006, 0.009, 0.16, 5), std(0x5d8f45), 0, 0.17, 0, seedling);
+  const sprout = new THREE.Group();
+  sprout.position.y = 0.09;
+  seedling.add(sprout);
+  add(new THREE.CylinderGeometry(0.006, 0.009, 0.16, 5), std(0x5d8f45), 0, 0.08, 0, sprout);
   const sproutMat = std(0x74b356, { roughness: 0.6, side: THREE.DoubleSide });
   const leaves = [];
   [[-1, 0.21], [1, 0.23], [-1, 0.14], [1, 0.13], [0, 0.26]].forEach(([side, y], i) => {
-    const l = add(new THREE.SphereGeometry(0.05, 10, 6), sproutMat, side * 0.045, y, side === 0 ? 0.03 : 0, seedling);
+    const l = add(new THREE.SphereGeometry(0.05, 10, 6), sproutMat, side * 0.045, y - 0.09, side === 0 ? 0.03 : 0, sprout);
     l.scale.set(1.2, 0.22, 0.6);
     l.rotation.z = side * 0.5;
     if (i > 1) { l.visible = false; leaves.push(l); }
@@ -423,7 +426,7 @@ export function createGarden(canvas) {
 
   /* ---------- drifting motes in the late light ---------- */
   const MOTES = 140, moteGeo = new THREE.BufferGeometry(), mp = new Float32Array(MOTES * 3), mseed = new Float32Array(MOTES);
-  for (let i = 0; i < MOTES; i++) { mp[i * 3] = rand(-4, 4); mp[i * 3 + 1] = rand(0.2, 3); mp[i * 3 + 2] = rand(-4, 3); mseed[i] = rand(0, 100); }
+  for (let i = 0; i < MOTES; i++) { mp[i * 3] = rand(-4, 4); mp[i * 3 + 1] = rand(0.2, 3); mp[i * 3 + 2] = rand(-5, 1.2); mseed[i] = rand(0, 100); }
   moteGeo.setAttribute('position', new THREE.BufferAttribute(mp, 3));
   const motes = new THREE.Points(moteGeo, new THREE.PointsMaterial({ map: softDot, color: 0xfff1cf, size: 0.035, transparent: true, opacity: 0.7, depthWrite: false, blending: THREE.AdditiveBlending }));
   scene.add(motes);
@@ -452,7 +455,7 @@ export function createGarden(canvas) {
   });
 
   /* ---------- marker that shows what to touch ---------- */
-  const marker = new THREE.Mesh(new THREE.RingGeometry(0.15, 0.185, 48), new THREE.MeshBasicMaterial({ color: 0xfff6dc, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthTest: false, toneMapped: false }));
+  const marker = new THREE.Mesh(new THREE.RingGeometry(0.15, 0.185, 48), new THREE.MeshBasicMaterial({ color: 0xfff3d6, transparent: true, opacity: 0.6, side: THREE.DoubleSide, depthTest: false }));
   marker.rotation.x = -Math.PI / 2;
   marker.renderOrder = 10;
   marker.visible = false;
@@ -521,7 +524,7 @@ export function createGarden(canvas) {
       const flap = Math.sin(t * 14 + phase) * 0.9;
       wl.rotation.z = flap; wr.rotation.z = -flap;
     });
-    if (marker.visible) { const s = 1 + Math.sin(t * 3) * 0.12; marker.scale.set(s, s, s); marker.material.opacity = 0.55 + Math.sin(t * 3) * 0.25; }
+    if (marker.visible) { const s = 1 + Math.sin(t * 3) * 0.12; marker.scale.set(s, s, s); marker.material.opacity = 0.4 + Math.sin(t * 3) * 0.2; }
     if (drops.visible) updateDrops(dt);
     composer.render();
   }
@@ -536,5 +539,5 @@ export function createGarden(canvas) {
     camera.updateProjectionMatrix();
   }
 
-  return { renderer, scene, camera, look, LIMIT, applyLook, BED, standL, standR, seedling, leaves, can, SPOUT_TIP, flowers, MOUNTAIN, marker, drops, water, update, resize };
+  return { renderer, scene, camera, look, LIMIT, applyLook, BED, standL, standR, seedling, sprout, leaves, can, SPOUT_TIP, flowers, MOUNTAIN, marker, drops, water, update, resize };
 }

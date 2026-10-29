@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { parseCSV } from './csv.js?v=5';
-import { createGarden } from './garden.js?v=5';
+import { parseCSV } from './csv.js?v=6';
+import { createGarden } from './garden.js?v=6';
 
 /* =====================================================================
    STATE AND EVENT LOG
@@ -28,7 +28,7 @@ async function loadData() {
    ===================================================================== */
 const canvas = $('#scene');
 const G = createGarden(canvas);
-const { scene, camera, look, LIMIT, applyLook, BED, standL, standR, seedling, leaves, can, flowers, MOUNTAIN, marker, drops } = G;
+const { scene, camera, look, LIMIT, applyLook, BED, standL, standR, seedling, sprout, leaves, can, flowers, MOUNTAIN, marker, drops } = G;
 
 /* =====================================================================
    TWEENS AND LOOP
@@ -268,7 +268,7 @@ const BEHAVIOURS = {
     leaves.forEach(l => { l.visible = true; l.scale.set(0.01, 0.01, 0.01); });
     await tw(3.2, k => {
       const s = 1 + k * 1.3;
-      seedling.scale.set(s, s, s);
+      sprout.scale.set(s, s, s);
       leaves.forEach(l => l.scale.set(1.2 * k, 0.28 * k, 0.6 * k));
     });
     G.water.on = false; waterSound(false);
@@ -349,7 +349,7 @@ function showResult() {
   const relax = ratings.filter(e => e.id.startsWith('relax'));
   const done = state.log.filter(e => e.type === 'action_complete');
   const end = state.log.at(-1).t || 1;
-  const W = 680, H = 280, L = 56, R = 24, T = 24, B = 48;
+  const W = 600, H = 300, L = 52, R = 56, T = 36, B = 48;
   const X = t => L + (t / end) * (W - L - R), Y = v => T + (1 - v / 10) * (H - T - B);
   const label = id => {
     if (id === 'relax_pre') return '開始前';
@@ -360,11 +360,11 @@ function showResult() {
   const name = id => (state.actions.find(a => a.id === id) || {}).name || id;
   const pts = relax.map(e => [X(e.t), Y(Number(e.value))]);
   const svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="放鬆程度隨活動進行的變化">
-    ${[0, 2, 4, 6, 8, 10].map(v => `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="rgba(34,48,42,.1)"/><text x="${L - 10}" y="${Y(v) + 4}" text-anchor="end" font-size="12" fill="#55665c">${v}</text>`).join('')}
+    ${[0, 2, 4, 6, 8, 10].map(v => `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="rgba(34,48,42,.1)"/><text x="${L - 10}" y="${Y(v) + 4}" text-anchor="end" font-size="13" fill="#55665c">${v}</text>`).join('')}
     <text x="14" y="${T + (H - T - B) / 2}" font-size="12" fill="#55665c" transform="rotate(-90 14 ${T + (H - T - B) / 2})" text-anchor="middle">放鬆程度（0–10）</text>
-    ${done.map(e => `<line x1="${X(e.t)}" x2="${X(e.t)}" y1="${T}" y2="${H - B}" stroke="#b5762a" stroke-dasharray="4 4"/><text x="${X(e.t)}" y="${H - B + 18}" text-anchor="middle" font-size="12.5" fill="#b5762a">${esc(name(e.id))}</text>`).join('')}
+    ${done.map(e => `<line x1="${X(e.t)}" x2="${X(e.t)}" y1="${T}" y2="${H - B}" stroke="#b5762a" stroke-dasharray="4 4"/><text x="${X(e.t)}" y="${H - B + 18}" text-anchor="middle" font-size="13" fill="#b5762a">${esc(name(e.id))}</text>`).join('')}
     <polyline points="${pts.map(p => p.join(',')).join(' ')}" fill="none" stroke="#3d6b52" stroke-width="2.5"/>
-    ${relax.map((e, i) => `<circle cx="${pts[i][0]}" cy="${pts[i][1]}" r="5" fill="#3d6b52"/><text x="${pts[i][0]}" y="${pts[i][1] - 12}" text-anchor="middle" font-size="12" fill="#22302a">${esc(label(e.id))} ${e.value}</text>`).join('')}
+    ${relax.map((e, i) => `<circle cx="${pts[i][0]}" cy="${pts[i][1]}" r="5" fill="#3d6b52"/><text x="${pts[i][0]}" y="${pts[i][1] + (i % 2 ? 24 : -12)}" text-anchor="middle" font-size="13" font-weight="500" fill="#22302a">${esc(label(e.id))} ${e.value}</text>`).join('')}
     <text x="${W - R}" y="${H - 8}" text-anchor="end" font-size="12" fill="#55665c">經過時間 ${Math.round(end / 1000)} 秒</text>
   </svg>`;
   $('#timeline').innerHTML = svg;
