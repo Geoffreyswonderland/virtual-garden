@@ -422,6 +422,11 @@ function tools(scene) {
   bowl.rotation.x = 0;
   const neck = cyl(0.018, 0.03, 0.28, std(0xb79a55, { roughness: 0.6 }), 0.18, 0.02, 0, ladle, 8);
   neck.rotation.z = Math.PI / 2 - 0.3;
+  // the water it carries, shown once it has been dipped in the bucket
+  const scoop = mesh(new THREE.CircleGeometry(0.078, 20), std(0x3d5f5c, { roughness: 0.05 }), 0, -0.02, 0, ladle, { cast: false });
+  scoop.rotation.x = -Math.PI / 2;
+  scoop.visible = false;
+  ladle.userData.scoop = scoop;
   ladle.position.set(bx, 0.43, bz);
   ladle.rotation.y = 0.6;
   scene.add(ladle);

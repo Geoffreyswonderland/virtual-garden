@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { parseCSV } from './csv.js?v=16';
-import { createWorld } from './world/index.js?v=22';
+import { createWorld } from './world/index.js?v=26';
 import { createControls } from './controls.js?v=18';
 import { audioInit, setScape, oneShot, waterSound, toggleSound } from './audio.js?v=16';
 import { L, PATHS, APPROACH, EYE } from './world/layout.js?v=18';
@@ -908,35 +908,63 @@ const BEHAVIOURS = {
     oneShot('stepDirt', 1.2);
     setHeld('');
 
-    // 7. a ladle of water over the three mounds
+    // 7. dip the ladle in the bucket, carry it to the mounds, and pour on each one
     setTarget(V(L.bucket[0], 0.4, L.bucket[1]), 'bucket');
     setTask(a.name, a.task_7);
     step(6);
+    coach('scoop', '怎麼舀水', ['到田邊的水桶旁（圈圈變綠）', '點一下水桶，或按右下角的「舀水」', '會用水瓢從桶裡舀起一瓢水，拿在手上']);
     await offer([{ id: 'bucket', obj: parts.bucket, pos: V(L.bucket[0], 0, L.bucket[1]), reach: 2.2, label: '舀水' }]);
-    const ladleHome = parts.ladle.position.clone(), ladleRot = parts.ladle.rotation.clone();
-    await hold(parts.ladle, V(0.28, -0.34, -0.6), [0, 0.3, 0]);
+    hideCoach();
+    const ladle = parts.ladle, scoop = ladle.userData.scoop;
+    const ladleHome = ladle.position.clone(), ladleRot = ladle.rotation.clone();
+    const bucketP = V(L.bucket[0], 0, L.bucket[1]);
+    // dip in, come up full
+    await tw(0.5, k => { ladle.position.set(lerp(ladleHome.x, bucketP.x, k), ladleHome.y + Math.sin(k * Math.PI) * 0.12, lerp(ladleHome.z, bucketP.z, k)); });
+    await tw(0.45, k => { ladle.position.y = lerp(0.43, 0.24, k); ladle.rotation.z = lerp(0, 0.5, k); });
+    oneShot('pull', 0.6);
+    scoop.visible = true;
+    scoop.scale.setScalar(1);
+    await tw(0.45, k => { ladle.position.y = lerp(0.24, 0.62, k); ladle.rotation.z = lerp(0.5, 0, k); });
+    const HAND = V(0.24, -0.3, -0.55);
+    await hold(ladle, HAND, [0, 0.3, 0], 0.6);
     setHeld('一瓢水');
-    setTarget(rowC, 'beans');
-    setTask(a.name, '回到豆田，按住，把水慢慢澆在三個土堆上');
-    coach('water', '怎麼澆水', ['走回豆田的土堆旁', '按住右下角的「按住澆水」或空白鍵，水就會倒出來', '放開就停；三個土堆都變深色就澆好了']);
+
+    coach('water', '怎麼澆水', ['拿著水瓢，走到土堆旁（圈圈變綠）', '按住右下角的「按住澆水」或空白鍵，水瓢會傾斜，把水倒在土堆上', '放開就停；三個土堆都澆到變深色，就完成了']);
     let tilt = 0;
-    const tiltHook = dt => { tilt += ((pour.on ? 1.1 : 0) - tilt) * Math.min(1, dt * 6); parts.ladle.rotation.z = tilt; if (pour.on) parts.ladle.getWorldPosition(pour.from); };
+    const tiltHook = dt => {
+      tilt += ((pour.on ? 1.15 : 0) - tilt) * Math.min(1, dt * 6);
+      ladle.rotation.z = tilt;
+      ladle.position.lerp(pour.on ? V(0.14, -0.22, -0.5) : HAND, Math.min(1, dt * 5));
+      if (pour.on) ladle.getWorldPosition(pour.from);
+    };
     hooks.add(tiltHook);
-    await offer([{
-      id: 'water', obj: [parts.fieldHit, ...S.map(sp => sp.hit)], pos: rowC, reach: 2.8, label: '按住澆水',
-      hold: 3.6, decay: false, holdHint: '按住田裡，或按住右下角的按鈕',
-      onHold: on => { pour.on = on; drops.visible = true; waterSound(on); if (on) { beacon.visible = false; hideCoach(); } },
-      onProgress: p => {
-        pour.to.set(lerp(S[0].pos.x, S[2].pos.x, p), rowC.y, rowC.z);
-        S.forEach((sp, i) => { sp.wet.material.opacity = Math.min(1, Math.max(0, p * 3 - i)) * 0.7; });
-      },
-    }]);
-    pour.on = false; waterSound(false);
-    await wait(500);
+    let left = 1;
+    for (let n = 0; n < S.length; n++) {
+      setTarget(S.find(sp => !sp.watered).pos.clone().setY(0.5), null);
+      target.approach = approachPoint({ pos: target.pos, reach: 1.2 }) || target.approach;
+      setTask(a.name, `走到土堆旁，按住澆水（${n} / ${S.length}）`);
+      const item = await offer(S.filter(sp => !sp.watered).map(sp => ({
+        id: 'water', tag: S.indexOf(sp), obj: sp.hit, pos: sp.pos, reach: 1.6, label: '按住澆水',
+        hold: 1.4, decay: false, holdHint: '走到土堆旁，按住才會倒水',
+        onHold: on => { pour.on = on; pour.to.copy(sp.pos); drops.visible = true; waterSound(on); if (on) { beacon.visible = false; hideCoach(); } },
+        onProgress: p => {
+          sp.wet.material.opacity = p * 0.75;
+          scoop.scale.setScalar(Math.max(0.05, left - p / S.length));
+        },
+      })));
+      const sp = S[item.tag];
+      sp.watered = true;
+      left -= 1 / S.length;
+      pour.on = false; waterSound(false);
+    }
+    await wait(400);
     hooks.delete(tiltHook);
-    parts.ladle.rotation.z = 0;
+    ladle.rotation.z = 0;
+    scoop.visible = false;
     setTimeout(() => { drops.visible = false; }, 700);
-    await putDown(parts.ladle, ladleHome, [ladleRot.x, ladleRot.y, ladleRot.z]);
+    setTarget(null);
+    setTask(a.name, '水澆好了，水瓢放回水桶上');
+    await putDown(ladle, ladleHome, [ladleRot.x, ladleRot.y, ladleRot.z]);
     setHeld('');
     setTarget(null);
     setSteps(STEPS, STEPS.length);
