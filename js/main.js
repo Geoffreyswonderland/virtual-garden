@@ -1,49 +1,121 @@
 import * as THREE from 'three';
-import { parseCSV } from './csv.js?v=8';
-import { createGarden } from './garden.js?v=8';
+import { parseCSV } from './csv.js?v=9';
+import { createWorld } from './world/index.js';
+import { createControls } from './controls.js';
+import { audioInit, setScape, oneShot, waterSound, toggleSound } from './audio.js';
+import { L, PATHS, APPROACH, EYE } from './world/layout.js';
+import { pathDist } from './world/grass.js';
 
 /* =====================================================================
    STATE AND EVENT LOG
    Every meaningful moment is written to state.log with a time stamp in
-   milliseconds since the session started, so the process can be
+   milliseconds since the session started, so the whole visit can be
    reconstructed and aligned with other data (e.g. a heart-rate strap).
    ===================================================================== */
 const $ = s => document.querySelector(s);
-const state = { actions: [], questions: [], log: [], t0: 0, running: false };
+const state = { actions: [], questions: [], log: [], t0: 0, running: false, stage: -1, autoWalks: 0, gateOpen: false, trail: [] };
 const now = () => Math.round(performance.now() - state.t0);
 const log = (type, id = '', value = '') => state.log.push({ t: now(), type, id, value: String(value) });
 
 async function loadData() {
-  const get = u => fetch(u, { cache: 'no-store' }).then(r => {
-    if (!r.ok) throw new Error(u);
-    return r.text();
-  });
+  const get = u => fetch(u, { cache: 'no-store' }).then(r => { if (!r.ok) throw new Error(u); return r.text(); });
   const [a, q] = await Promise.all([get('data/actions.csv'), get('data/questions.csv')]);
   state.actions = parseCSV(a).sort((x, y) => Number(x.order) - Number(y.order));
   state.questions = parseCSV(q);
 }
 
 /* =====================================================================
-   SCENE (built in garden.js)
+   WORLD AND PLAYER
    ===================================================================== */
 const canvas = $('#scene');
-const G = createGarden(canvas);
-const { scene, camera, look, LIMIT, applyLook, STAND, HUT, BED, HOLES, standL, standR, gate, weeds, pouch, beans, sprouts, can, hoe, drops, dewMat, marker } = G;
-scene.add(camera); // so the carried hoe can ride along with the camera
+const W = createWorld(canvas);
+const { scene, camera, parts, env } = { ...W, env: W.env };
+
+function isWalkable(x, z) {
+  const { lane, fence, gate } = L;
+  if (x > lane.x0 && x < lane.x1 && z > lane.z0 && z < lane.z1) return true;
+  if (!state.gateOpen) return false;
+  if (Math.abs(x) < gate.half - 0.12 && z > fence.z1 - 0.6 && z < fence.z1 + 0.6) return true;
+  return x > fence.x0 + 0.4 && x < fence.x1 - 0.4 && z > fence.z0 + 0.4 && z < fence.z1 - 0.35;
+}
+const controls = createControls({
+  camera, canvas, colliders: W.colliders, isWalkable,
+  onTap: (x, y) => handleTap(x, y),
+  onUserMove: what => log('auto_walk', '', what),
+});
+controls.place(L.start[0], L.start[1], 0, -0.04);
+
+/* ---------- a soft column of light over the current target ---------- */
+const beacon = new THREE.Group();
+{
+  const colMat = new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+    uniforms: { uTime: env.time, color: { value: new THREE.Color(1, 0.9, 0.65) }, fade: { value: 1 } },
+    vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: `uniform float uTime, fade; uniform vec3 color; varying vec2 vUv;
+      void main(){ float a = pow(1.0 - vUv.y, 2.2) * (0.55 + 0.25 * sin(uTime * 2.0 + vUv.y * 6.0)) * (0.6 + 0.4 * sin(vUv.x * 6.2831 * 3.0 + uTime) * 0.5 + 0.2);
+        a *= fade; gl_FragColor = vec4(color * a * 0.5, a * 0.5); }`,
+  });
+  const col = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.55, 3.2, 24, 1, true), colMat);
+  col.position.y = 1.6;
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.45, 0.55, 40), new THREE.MeshBasicMaterial({ color: 0xffe6b0, transparent: true, opacity: 0.55, depthWrite: false, side: THREE.DoubleSide }));
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.y = 0.03;
+  beacon.add(col, ring);
+  beacon.userData.ring = ring;
+  beacon.userData.col = colMat;
+  beacon.visible = false;
+  scene.add(beacon);
+}
+let target = null;  // { pos: Vector3, approach: [x,z] }
+function setTarget(pos, approachKey) {
+  target = pos ? { pos: pos.clone(), approach: APPROACH[approachKey] || [pos.x, pos.z] } : null;
+  beacon.visible = !!pos;
+  if (pos) beacon.position.set(pos.x, 0, pos.z);
+  $('#guide-me').hidden = !pos;
+}
+
+/* ---------- water drops from the ladle ---------- */
+const DROPS = 160, dropGeo = new THREE.BufferGeometry(), dropVel = new Float32Array(DROPS * 3);
+dropGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(DROPS * 3).fill(-10), 3));
+const dropTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 32; const g = c.getContext('2d'); const r = g.createRadialGradient(16, 16, 0, 16, 16, 16); r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = r; g.fillRect(0, 0, 32, 32); return new THREE.CanvasTexture(c); })();
+const drops = new THREE.Points(dropGeo, new THREE.PointsMaterial({ map: dropTex, color: 0xd6ecf5, size: 0.035, transparent: true, depthWrite: false }));
+drops.frustumCulled = false;
+drops.visible = false;
+scene.add(drops);
+const pour = { on: false, from: new THREE.Vector3(), to: new THREE.Vector3() };
+function updateDrops(dt) {
+  const p = dropGeo.attributes.position.array;
+  for (let i = 0; i < DROPS; i++) {
+    const j = i * 3;
+    dropVel[j + 1] -= 9.8 * dt;
+    p[j] += dropVel[j] * dt; p[j + 1] += dropVel[j + 1] * dt; p[j + 2] += dropVel[j + 2] * dt;
+    if (p[j + 1] < 0.12) {
+      if (pour.on && Math.random() < 0.5) {
+        p[j] = pour.from.x + (Math.random() - 0.5) * 0.03; p[j + 1] = pour.from.y; p[j + 2] = pour.from.z + (Math.random() - 0.5) * 0.03;
+        const t = 0.45, dx = pour.to.x - pour.from.x, dz = pour.to.z - pour.from.z;
+        dropVel[j] = dx / t + (Math.random() - 0.5) * 0.4; dropVel[j + 1] = 0.3 + Math.random() * 0.3; dropVel[j + 2] = dz / t + (Math.random() - 0.5) * 0.4;
+      } else p[j + 1] = -10;
+    }
+  }
+  dropGeo.attributes.position.needsUpdate = true;
+}
 
 /* =====================================================================
-   TWEENS AND LOOP
+   TWEENS AND THE FRAME LOOP
    ===================================================================== */
 const tweens = [];
 const ease = k => (k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2);
 const tw = (dur, fn, curve = ease) => new Promise(done => tweens.push({ t: 0, dur, fn, curve, done }));
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const lerp = (a, b, k) => a + (b - a) * k;
-const angDiff = (a, b) => { let d = (b - a) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return d; };
+const hooks = new Set();   // per-frame callbacks used by stages
 
+const DEBUG = new URLSearchParams(location.search).has('debug');
 const clock = new THREE.Clock();
+let stepAcc = 0, posTimer = 0, perf = { frames: 0, time: 0, done: false };
 function frame() {
-  const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
+  const dt = Math.min(clock.getDelta(), DEBUG ? 0.5 : 0.05), t = clock.elapsedTime;
   for (let i = tweens.length - 1; i >= 0; i--) {
     const w = tweens[i];
     w.t += dt;
@@ -51,274 +123,257 @@ function frame() {
     w.fn(w.curve(k));
     if (k >= 1) { tweens.splice(i, 1); w.done(); }
   }
-  G.update(dt, t);
+  const moved = controls.update(dt);
+  if (moved > 0) {
+    stepAcc += moved;
+    if (stepAcc > 0.68) {
+      stepAcc = 0;
+      const onDirt = pathDist(controls.st.x, controls.st.z) < 0.7 || controls.st.z > L.fence.z1;
+      oneShot(onDirt ? 'stepDirt' : 'stepGrass', 0.8);
+    }
+  }
+  if (state.running) {
+    posTimer += dt;
+    if (posTimer > 0.5) {
+      posTimer = 0;
+      const { x, z, yaw } = controls.st;
+      log('pos', state.stage >= 0 ? state.actions[state.stage]?.id || '' : 'pre', `${x.toFixed(2)};${z.toFixed(2)};${yaw.toFixed(2)}`);
+      state.trail.push([x, z, state.stage]);
+    }
+    if (!perf.done) {
+      perf.frames++; perf.time += dt;
+      if (perf.time > 5) {
+        perf.done = true;
+        const fps = perf.frames / perf.time;
+        log('perf', W.tier, fps.toFixed(1));
+        if (fps < 26) { W.env.renderer.setPixelRatio(1); W.resize(); log('perf', 'lowered_resolution'); }
+      }
+    }
+  }
+  hooks.forEach(h => h(dt, t));
+  if (beacon.visible) {
+    const s = 1 + Math.sin(t * 3) * 0.08;
+    beacon.userData.ring.scale.set(s, s, s);
+    const d = Math.hypot(beacon.position.x - controls.st.x, beacon.position.z - controls.st.z);
+    beacon.userData.col.uniforms.fade.value = Math.min(1, Math.max(0, (d - 2.2) / 3));
+  }
+  if (drops.visible) updateDrops(dt);
+  updateNear();
+  updateEdge();
+  W.update(dt, t);
   requestAnimationFrame(frame);
 }
-window.addEventListener('resize', G.resize);
-G.resize();
-requestAnimationFrame(frame);
+window.addEventListener('resize', W.resize);
+W.resize();
 
 /* =====================================================================
-   INPUT: drag to look around, tap to interact
+   HUD
    ===================================================================== */
-const raycaster = new THREE.Raycaster();
-let drag = null, active = null, locked = false;
-canvas.addEventListener('pointerdown', e => {
-  drag = { x: e.clientX, y: e.clientY, yaw: look.yaw, pitch: look.pitch, moved: 0 };
-  canvas.setPointerCapture(e.pointerId);
-});
-canvas.addEventListener('pointermove', e => {
-  if (!drag || locked) return;
-  const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
-  drag.moved = Math.max(drag.moved, Math.hypot(dx, dy));
-  if (drag.moved > 6) {
-    canvas.classList.add('dragging');
-    look.yaw = drag.yaw + dx * 0.004;
-    look.pitch = THREE.MathUtils.clamp(drag.pitch + dy * 0.004, LIMIT.pitchMin, LIMIT.pitchMax);
-    applyLook();
-  }
-});
-canvas.addEventListener('pointerup', e => {
-  const d = drag;
-  drag = null;
-  canvas.classList.remove('dragging');
-  if (!d || d.moved > 6 || !active) return;
-  const r = canvas.getBoundingClientRect();
-  const p = new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
-  raycaster.setFromCamera(p, camera);
-  const hit = raycaster.intersectObjects(active.targets, true)[0];
-  if (!hit) { log('miss', active.id); return; }
-  const a = active;
-  active = null;
-  marker.visible = false;
-  a.resolve(hit.object);
-});
-
-function waitTap(id, targets, markerAt) {
-  marker.position.copy(markerAt);
-  marker.visible = true;
-  return new Promise(resolve => { active = { id, targets, resolve }; });
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const DAYPOS = { morning: 0.08, noon: 0.42, dusk: 0.72, night: 0.95 };
+function setChapter(step, title, tod) {
+  $('#chap-step').textContent = step;
+  $('#chap-title').textContent = title;
+  if (tod in DAYPOS) $('#day-dot').style.left = `${DAYPOS[tod] * 100}%`;
 }
-const isInside = (obj, group) => { for (let o = obj; o; o = o.parent) if (o === group) return true; return false; };
+function setTask(title, text) {
+  $('#task').hidden = !title;
+  $('#task-title').textContent = title || '';
+  $('#task-text').textContent = text || '';
+}
+function setHeld(name) { $('#held').textContent = name ? `手上：${name}` : ''; }
+let toastTimer = 0;
+function toast(msg, ms = 1800) {
+  const t = $('#toast');
+  t.textContent = msg;
+  t.classList.add('on');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('on'), ms);
+}
+function walkMode(on) {
+  controls.enabled = on;
+  $('#stick').hidden = !on;
+  $('#keys-hint').hidden = !on;
+  if (!on) { $('#act').hidden = true; $('#edge').hidden = true; }
+}
 
-/* =====================================================================
-   SOUNDSCAPES (synthesised for the prototype; the research version will
-   use loudness-matched field recordings)
-   city   : traffic hum and passing cars (久在樊籠裡)
-   garden : wind, a small stream, birds
-   night  : crickets and a softer wind
-   ===================================================================== */
-const AU = { ctx: null, master: null, on: true, scape: 'city', bus: {} };
-function noiseBuffer(ctx, brown) {
-  const b = ctx.createBuffer(1, ctx.sampleRate * 4, ctx.sampleRate), d = b.getChannelData(0);
-  let last = 0;
-  for (let i = 0; i < d.length; i++) {
-    const w = Math.random() * 2 - 1;
-    if (brown) { last = (last + 0.02 * w) / 1.02; d[i] = last * 3.5; } else d[i] = w;
-  }
+/* ---------- the dialogue box ---------- */
+const dlg = $('#dlg'), dlgBody = $('#dlg-body'), dlgActions = $('#dlg-actions');
+function openDialogue(speaker, tag) {
+  walkMode(false);
+  $('#dlg-speaker').textContent = speaker || '';
+  $('#dlg-tag').textContent = tag || '';
+  dlg.hidden = false;
+}
+function closeDialogue() { dlg.hidden = true; }
+function button(label, cls = 'btn-primary') {
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = cls; b.textContent = label;
+  dlgActions.appendChild(b);
   return b;
 }
-function loopNoise(brown) {
-  const s = AU.ctx.createBufferSource();
-  s.buffer = brown ? AU.brown : AU.white;
-  s.loop = true;
-  s.start();
-  return s;
+async function say(speaker, tag, text, label = '繼續') {
+  openDialogue(speaker, tag);
+  dlgBody.className = 'dlg-body';
+  dlgBody.textContent = '';
+  dlgActions.innerHTML = '';
+  let skip = false;
+  const b = button(label);
+  b.disabled = true;
+  const skipper = () => { skip = true; };
+  dlg.addEventListener('pointerdown', skipper);
+  for (const ch of text) {
+    if (skip) { dlgBody.textContent = text; break; }
+    dlgBody.textContent += ch;
+    await wait(/[，。、！？]/.test(ch) ? 160 : 42);
+  }
+  dlg.removeEventListener('pointerdown', skipper);
+  b.disabled = false;
+  b.focus();
+  await new Promise(r => b.addEventListener('click', r, { once: true }));
+  closeDialogue();
 }
-function filt(type, freq, q = 0.7) { const f = AU.ctx.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q; return f; }
-function gain(v) { const g = AU.ctx.createGain(); g.gain.value = v; return g; }
-
-function audioInit() {
-  if (AU.ctx) return;
-  const ctx = new (window.AudioContext || window.webkitAudioContext)();
-  AU.ctx = ctx;
-  AU.white = noiseBuffer(ctx, false);
-  AU.brown = noiseBuffer(ctx, true);
-  AU.master = gain(0.7);
-  AU.master.connect(ctx.destination);
-  const bus = AU.bus;
-  ['city', 'garden', 'night'].forEach(k => { bus[k] = gain(k === 'city' ? 1 : 0); bus[k].connect(AU.master); });
-
-  // city: low rumble, a band of tyre noise, an occasional horn-like hum
-  loopNoise(true).connect(filt('lowpass', 160)).connect(gain(0.5)).connect(bus.city);
-  loopNoise(false).connect(filt('bandpass', 700, 0.5)).connect(gain(0.05)).connect(bus.city);
-  const hum = ctx.createOscillator(); hum.type = 'sawtooth'; hum.frequency.value = 58;
-  hum.connect(filt('lowpass', 220)).connect(gain(0.018)).connect(bus.city); hum.start();
-
-  // garden: wind with slow gusts, a stream on the left
-  const wg = gain(0.22);
-  loopNoise(true).connect(filt('lowpass', 420)).connect(wg).connect(bus.garden);
-  const lfo = ctx.createOscillator(); lfo.frequency.value = 0.07; lfo.connect(gain(0.1)).connect(wg.gain); lfo.start();
-  const sf = filt('bandpass', 1300);
-  const sp = ctx.createStereoPanner(); sp.pan.value = -0.6;
-  loopNoise(false).connect(sf).connect(gain(0.045)).connect(sp).connect(bus.garden);
-  setInterval(() => sf.frequency.setTargetAtTime(1000 + Math.random() * 700, ctx.currentTime, 0.4), 700);
-
-  // night: soft wind and two crickets
-  loopNoise(true).connect(filt('lowpass', 300)).connect(gain(0.12)).connect(bus.night);
-  [[4300, -0.5, 27], [4700, 0.6, 31]].forEach(([f, pan, rate]) => {
-    const o = ctx.createOscillator(); o.frequency.value = f;
-    const am = gain(0); const sq = ctx.createOscillator(); sq.type = 'square'; sq.frequency.value = rate;
-    sq.connect(gain(0.5)).connect(am.gain); sq.start(); o.start();
-    const gate = gain(0), p = ctx.createStereoPanner(); p.pan.value = pan;
-    o.connect(am).connect(gate).connect(gain(0.03)).connect(p).connect(bus.night);
-    const chirpLoop = () => {
-      const t = ctx.currentTime;
-      gate.gain.setTargetAtTime(1, t, 0.01);
-      gate.gain.setTargetAtTime(0, t + 0.18 + Math.random() * 0.12, 0.02);
-      setTimeout(chirpLoop, 500 + Math.random() * 900);
-    };
-    chirpLoop();
+async function showPoem(a, tag) {
+  openDialogue('陶淵明', tag);
+  const lines = a.poem.split(/[，,。.；;]/).map(s => s.trim()).filter(Boolean);
+  dlgBody.className = 'dlg-body poem';
+  dlgBody.innerHTML = `<div class="lines">${lines.map((l, i) => `<span style="animation-delay:${i * 0.9}s">${esc(l)}</span>`).join('')}</div>
+    <div class="src">${esc(a.poem_source)}</div>${a.poem_note ? `<div class="note">${esc(a.poem_note)}</div>` : ''}`;
+  dlgActions.innerHTML = '';
+  log('poem_shown', a.id);
+  const b = button('繼續');
+  b.disabled = true;
+  await wait(1200 + lines.length * 900);
+  b.disabled = false;
+  b.focus();
+  await new Promise(r => b.addEventListener('click', r, { once: true }));
+  closeDialogue();
+}
+function askRating(q, tag, count) {
+  return new Promise(resolve => {
+    openDialogue('此刻', tag);
+    dlgBody.className = 'dlg-body';
+    const mid = Math.round((+q.min + +q.max) / 2);
+    dlgBody.innerHTML = `
+      <p class="rate-q" id="rq">${esc(q.text)}${count ? ` <span class="rate-count">${esc(count)}</span>` : ''}</p>
+      <div class="rate-row"><input type="range" class="untouched" id="rin" min="${q.min}" max="${q.max}" step="1" value="${mid}" aria-labelledby="rq"><span class="rate-val" id="rv">—</span></div>
+      <div class="rate-labels"><span>${esc(q.min)}　${esc(q.min_label)}</span><span>${esc(q.max_label)}　${esc(q.max)}</span></div>`;
+    dlgActions.innerHTML = '';
+    const b = button('確定');
+    b.disabled = true;
+    const inp = $('#rin'), val = $('#rv');
+    const mark = () => { inp.classList.remove('untouched'); val.textContent = inp.value; b.disabled = false; };
+    ['input', 'pointerdown', 'keydown'].forEach(ev => inp.addEventListener(ev, mark));
+    b.addEventListener('click', () => {
+      const v = Number(inp.value);
+      log('rating', q.id, v);
+      closeDialogue();
+      resolve(v);
+    }, { once: true });
   });
+}
 
-  scheduleCar();
-  scheduleBird();
-}
-function setScape(name, seconds = 3) {
-  AU.scape = name;
-  log('soundscape', name);
-  if (!AU.ctx) return;
-  const t = AU.ctx.currentTime;
-  Object.entries(AU.bus).forEach(([k, g]) => g.gain.setTargetAtTime(k === name ? 1 : 0, t, seconds / 3));
-}
-function scheduleCar() {
-  setTimeout(() => {
-    if (AU.scape === 'city') {
-      const C = AU.ctx, t = C.currentTime, d = 2.5 + Math.random() * 2;
-      const s = C.createBufferSource(); s.buffer = AU.white;
-      const f = filt('lowpass', 300), g = gain(0), p = C.createStereoPanner();
-      const dir = Math.random() < 0.5 ? -1 : 1;
-      p.pan.setValueAtTime(-0.9 * dir, t); p.pan.linearRampToValueAtTime(0.9 * dir, t + d);
-      f.frequency.setValueAtTime(300, t); f.frequency.linearRampToValueAtTime(1400, t + d / 2); f.frequency.linearRampToValueAtTime(350, t + d);
-      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.16, t + d / 2); g.gain.linearRampToValueAtTime(0, t + d);
-      s.connect(f).connect(g).connect(p).connect(AU.bus.city);
-      s.start(t); s.stop(t + d + 0.1);
-    }
-    scheduleCar();
-  }, 2500 + Math.random() * 4500);
-}
-function chirp() {
-  const C = AU.ctx, pan = C.createStereoPanner();
-  pan.pan.value = Math.random() * 1.8 - 0.9;
-  pan.connect(AU.bus.garden);
-  let t = C.currentTime + 0.05;
-  const base = 2300 + Math.random() * 1500, n = 3 + Math.floor(Math.random() * 5);
-  for (let i = 0; i < n; i++) {
-    const o = C.createOscillator(), g = C.createGain(), dur = 0.05 + Math.random() * 0.1;
-    const f0 = base * (0.85 + Math.random() * 0.5);
-    o.frequency.setValueAtTime(f0, t);
-    o.frequency.exponentialRampToValueAtTime(f0 * (0.7 + Math.random() * 0.8), t + dur);
-    g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(0.045, t + 0.01);
-    g.gain.exponentialRampToValueAtTime(0.0005, t + dur);
-    o.connect(g).connect(pan);
-    o.start(t); o.stop(t + dur + 0.05);
-    t += dur + 0.03 + Math.random() * 0.08;
-  }
-}
-function scheduleBird() {
-  setTimeout(() => { if (AU.scape === 'garden') chirp(); scheduleBird(); }, 2500 + Math.random() * 5500);
-}
-function oneShot(kind) {
-  if (!AU.ctx) return;
-  const C = AU.ctx, t = C.currentTime, s = C.createBufferSource(); s.buffer = AU.white;
-  const spec = { creak: ['bandpass', 380, 6, 0.08, 0.9], pull: ['bandpass', 900, 1.2, 0.07, 0.35], seed: ['highpass', 3000, 0.7, 0.03, 0.08], step: ['lowpass', 500, 0.7, 0.05, 0.12] }[kind];
-  const f = filt(spec[0], spec[1], spec[2]), g = gain(0);
-  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(spec[3], t + 0.02); g.gain.exponentialRampToValueAtTime(0.0005, t + spec[4]);
-  s.connect(f).connect(g).connect(AU.master);
-  s.start(t); s.stop(t + spec[4] + 0.05);
-}
-function waterSound(on) {
-  if (!AU.ctx) return;
-  const C = AU.ctx;
-  if (on) {
-    const s = C.createBufferSource(); s.buffer = AU.white; s.loop = true;
-    const g = gain(0); g.gain.linearRampToValueAtTime(0.06, C.currentTime + 0.4);
-    s.connect(filt('highpass', 2500)).connect(g).connect(AU.master); s.start();
-    AU.water = { s, g };
-  } else if (AU.water) {
-    const { s, g } = AU.water;
-    g.gain.linearRampToValueAtTime(0, C.currentTime + 0.5);
-    s.stop(C.currentTime + 0.6);
-    AU.water = null;
-  }
-}
-$('#sound').addEventListener('click', () => {
-  AU.on = !AU.on;
-  if (AU.master) AU.master.gain.setTargetAtTime(AU.on ? 0.7 : 0, AU.ctx.currentTime, 0.1);
-  $('#sound').textContent = AU.on ? '聲音：開' : '聲音：關';
-  $('#sound').setAttribute('aria-pressed', String(AU.on));
-  log('sound', '', AU.on ? 'on' : 'off');
+/* ---------- menu ---------- */
+$('#btn-help').addEventListener('click', () => { $('#help').hidden = false; log('help_open'); });
+$('#help-close').addEventListener('click', () => { $('#help').hidden = true; });
+$('#btn-sound').addEventListener('click', () => {
+  const on = toggleSound();
+  $('#btn-sound').setAttribute('aria-pressed', String(on));
+  log('sound', '', on ? 'on' : 'off');
+});
+$('#btn-full').addEventListener('click', () => {
+  if (document.fullscreenElement) document.exitFullscreen?.();
+  else document.documentElement.requestFullscreen?.().catch(() => toast('這個瀏覽器不支援全螢幕'));
+});
+$('#guide-me').addEventListener('click', async () => {
+  if (!target || !controls.enabled) return;
+  state.autoWalks++;
+  log('auto_walk', '', 'start');
+  const arrived = await controls.walkTo(target.approach);
+  if (arrived) { log('auto_walk', '', 'arrived'); if (target) controls.faceTo(target.pos.x, target.pos.y || 0.4, target.pos.z, 1.0); }
 });
 
 /* =====================================================================
-   PANELS: poem and slider questions
+   INTERACTION: walk near something, then tap it or the round button
    ===================================================================== */
-const panel = $('#panel'), card = $('#panel-card');
-const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const say = text => { $('#instruction').textContent = text; };
-
-function askSliders(questions, heading = '') {
-  return new Promise(resolve => {
-    card.innerHTML = (heading ? `<p class="eyebrow">${esc(heading)}</p>` : '') + questions.map((q, i) => `
-      <div class="q">
-        <p class="q-text" id="qt${i}">${esc(q.text)}</p>
-        <div class="q-row"><input type="range" id="q${i}" min="${q.min}" max="${q.max}" step="1" value="${Math.round((+q.min + +q.max) / 2)}" aria-labelledby="qt${i}"><span class="q-val empty" id="qv${i}">—</span></div>
-        <div class="q-labels"><span>${esc(q.min)}　${esc(q.min_label)}</span><span>${esc(q.max_label)}　${esc(q.max)}</span></div>
-      </div>`).join('') + '<p class="q-err" id="qerr" hidden>每一題都請先拖曳或點一下滑桿。</p><button class="primary" id="qok" type="button">繼續</button>';
-    const touched = new Set();
-    questions.forEach((q, i) => {
-      const inp = $('#q' + i), val = $('#qv' + i);
-      const mark = () => { touched.add(i); val.textContent = inp.value; val.classList.remove('empty'); $('#qerr').hidden = true; };
-      inp.addEventListener('input', mark);
-      inp.addEventListener('pointerdown', mark);
-      inp.addEventListener('keydown', mark);
-    });
-    panel.hidden = false;
-    $('#qok').addEventListener('click', () => {
-      if (touched.size < questions.length) { $('#qerr').hidden = false; return; }
-      const answers = questions.map((q, i) => {
-        const v = Number($('#q' + i).value);
-        log('rating', q.id, v);
-        return { ...q, value: v, t: now() };
-      });
-      panel.hidden = true;
-      resolve(answers);
-    });
-  });
+let offers = [], near = null, offerResolve = null;
+const raycaster = new THREE.Raycaster();
+const flat = (a, x, z) => Math.hypot(a.x - x, a.z - z);
+function offer(list) {
+  offers = list;
+  return new Promise(r => { offerResolve = r; });
+}
+function use(item) {
+  if (!offerResolve) return;
+  const r = offerResolve;
+  offers = []; near = null; offerResolve = null;
+  $('#act').hidden = true;
+  log('interact', item.id, item.tag ?? '');
+  r(item);
+}
+function updateNear() {
+  if (!offers.length || !controls.enabled) { if (near) { near = null; $('#act').hidden = true; } return; }
+  const { x, z } = controls.st;
+  let best = null, bd = 1e9;
+  for (const o of offers) {
+    const d = o.global ? 0 : flat(o.pos, x, z);
+    if (d < (o.reach || 2.2) && d < bd) { best = o; bd = d; }
+  }
+  if (best !== near) {
+    near = best;
+    const act = $('#act');
+    act.hidden = !best;
+    if (best) act.textContent = best.label;
+  }
+}
+$('#act').addEventListener('click', () => { if (near) use(near); });
+function handleTap(cx, cy) {
+  if (!offers.length || !controls.enabled) return;
+  const r = canvas.getBoundingClientRect();
+  raycaster.setFromCamera(new THREE.Vector2(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1), camera);
+  const objs = offers.filter(o => o.obj).flatMap(o => (Array.isArray(o.obj) ? o.obj : [o.obj]));
+  const hit = raycaster.intersectObjects(objs, true)[0];
+  if (!hit) { log('miss'); return; }
+  const item = offers.find(o => o.obj && (Array.isArray(o.obj) ? o.obj : [o.obj]).some(g => { for (let n = hit.object; n; n = n.parent) if (n === g) return true; return false; }));
+  if (!item) return;
+  const d = item.global ? 0 : flat(item.pos, controls.st.x, controls.st.z);
+  if (d > (item.reach || 2.2) * 1.3) { toast('再走近一點'); log('too_far', item.id, d.toFixed(1)); return; }
+  use(item);
 }
 
-function showPoem(a) {
-  return new Promise(resolve => {
-    const box = $('#poem-box');
-    const lines = a.poem.split(/[，,。.；;]/).map(s => s.trim()).filter(Boolean);
-    box.innerHTML = `<div class="poem-lines">${lines.map(l => `<span>${esc(l)}</span>`).join('')}</div>
-      <p class="poem-src">${esc(a.poem_source)}</p>
-      ${a.poem_note ? `<p class="poem-note">${esc(a.poem_note)}</p>` : ''}
-      <button id="pok" type="button" class="ghost" hidden>繼續</button>`;
-    box.hidden = false;
-    log('poem_shown', a.id);
-    requestAnimationFrame(() => requestAnimationFrame(() => box.classList.add('on')));
-    setTimeout(() => { const b = $('#pok'); b.hidden = false; b.focus(); }, 3400);
-    $('#pok').addEventListener('click', () => {
-      box.classList.remove('on');
-      setTimeout(() => { box.hidden = true; resolve(); }, 600);
-    });
-  });
+/* ---------- arrow at the screen edge when the target is out of view ---------- */
+const proj = new THREE.Vector3();
+function updateEdge() {
+  const el = $('#edge');
+  if (!target || !controls.enabled) { el.hidden = true; return; }
+  proj.set(target.pos.x, 1.2, target.pos.z).project(camera);
+  const behind = proj.z > 1;
+  let { x, y } = proj;
+  if (behind) { x = -x; y = -y; }
+  const inView = !behind && Math.abs(x) < 0.85 && Math.abs(y) < 0.8;
+  const dist = flat(target.pos, controls.st.x, controls.st.z);
+  if (inView || dist < 3) { el.hidden = true; return; }
+  const m = Math.max(Math.abs(x) / 0.88, Math.abs(y) / 0.78, 1e-3);
+  const ex = x / m, ey = y / m;
+  el.hidden = false;
+  el.style.left = `${(ex * 0.5 + 0.5) * innerWidth}px`;
+  el.style.top = `${(-ey * 0.5 + 0.5) * innerHeight}px`;
+  el.querySelector('.arrow').style.transform = `rotate(${Math.atan2(ex, ey)}rad)`;
+  $('#edge-dist').textContent = `${Math.round(dist)} 公尺`;
 }
 
-/* =====================================================================
-   CAMERA HELPERS
-   ===================================================================== */
-async function lookTo(yaw, pitch, dur = 1.4) {
-  const y0 = look.yaw, p0 = look.pitch, dy = angDiff(y0, yaw);
-  await tw(dur, k => { look.yaw = y0 + dy * k; look.pitch = lerp(p0, pitch, k); applyLook(); });
+/* ---------- carrying things ---------- */
+function hold(obj, pos, rot, dur = 0.9) {
+  camera.attach(obj);
+  const p0 = obj.position.clone(), q0 = obj.quaternion.clone(), q1 = new THREE.Quaternion().setFromEuler(new THREE.Euler(...rot));
+  return tw(dur, k => { obj.position.lerpVectors(p0, pos, k); obj.quaternion.slerpQuaternions(q0, q1, k); });
 }
-const yawTo = v => Math.atan2(-(v.x - camera.position.x), -(v.z - camera.position.z));
-const pitchTo = v => Math.atan2(v.y - camera.position.y, Math.hypot(v.x - camera.position.x, v.z - camera.position.z));
-const lookAt = (v, dur) => lookTo(yawTo(v), pitchTo(v), dur);
-const mid = (a, b, y = 0) => new THREE.Vector3((a.x + b.x) / 2, y, (a.z + b.z) / 2);
-const BED_TOP = new THREE.Vector3(BED.x, BED.y, BED.z);
+function putDown(obj, pos, rot, dur = 0.9) {
+  scene.attach(obj);
+  const p0 = obj.position.clone(), q0 = obj.quaternion.clone(), q1 = new THREE.Quaternion().setFromEuler(new THREE.Euler(...rot));
+  return tw(dur, k => { obj.position.lerpVectors(p0, pos, k); obj.position.y += Math.sin(k * Math.PI) * 0.15; obj.quaternion.slerpQuaternions(q0, q1, k); });
+}
+const V = (x, y, z) => new THREE.Vector3(x, y, z);
 
 /* =====================================================================
    STAGES: each `target` in actions.csv maps to one behaviour here
@@ -326,207 +381,260 @@ const BED_TOP = new THREE.Vector3(BED.x, BED.y, BED.z);
 const BEHAVIOURS = {
   /* 序：久在樊籠裡，復得返自然 */
   async gate(a) {
-    await waitTap(a.id, gate, new THREE.Vector3(0, 0.03, 5.25));
+    setTarget(V(0, 1, L.gate.z), 'gate');
+    setTask(a.name, a.task);
+    walkMode(true);
+    await offer([{ id: 'gate', obj: parts.gate, pos: V(0, 0, L.gate.z + 0.2), reach: 2.6, label: '推開' }]);
+    setTarget(null);
     oneShot('creak');
-    log('gate_open', a.id);
-    setScape('garden', 5);
-    await tw(2.2, k => { gate[0].rotation.y = 1.55 * k; gate[1].rotation.y = -1.55 * k; });
-    say('');
-    const from = camera.position.clone();
-    const steps = setInterval(() => oneShot('step'), 620);
-    await tw(4.2, k => { camera.position.lerpVectors(from, STAND, k); camera.position.y += Math.sin(k * Math.PI * 7) * 0.012; });
-    clearInterval(steps);
-    await lookAt(BED_TOP, 1.6);
+    setScape('garden', 6);
+    log('soundscape', 'garden');
+    await tw(2.4, k => { parts.gate[0].rotation.y = 1.65 * k; parts.gate[1].rotation.y = -1.65 * k; });
+    state.gateOpen = true;
+    await wait(700);
   },
 
   /* 晨：晨興理荒穢 */
   async weeds(a) {
-    await lookAt(BED_TOP, 1.2);
-    const left = () => weeds.filter(w => !w.userData.pulled);
-    while (left().length) {
-      say(`${a.instruction}（還剩 ${left().length} 叢）`);
-      const next = left()[0];
-      const obj = await waitTap(a.id, left(), new THREE.Vector3(next.position.x, next.position.y + 0.01, next.position.z));
-      const w = weeds.find(x => isInside(obj, x));
+    const center = V(L.veg.x, 0.3, L.veg.z);
+    setTarget(center, 'veg');
+    walkMode(true);
+    let pulled = 0;
+    const total = parts.weeds.length;
+    while (pulled < total) {
+      setTask(a.name, `${a.task}（${pulled} / ${total}）`);
+      const left = parts.weeds.filter(w => !w.userData.pulled);
+      const item = await offer(left.map(w => ({ id: 'weed', tag: parts.weeds.indexOf(w), obj: w, pos: w.position, reach: 2.4, label: '拔草' })));
+      const w = item.obj;
       w.userData.pulled = true;
-      log('weed_pulled', a.id, weeds.indexOf(w));
+      pulled++;
+      if (pulled === 1) beacon.visible = false;
       oneShot('pull');
       const y0 = w.position.y;
-      // not awaited, so a quick hand can keep pulling while the last clump lifts away
-      tw(0.7, k => { w.position.y = y0 + k * 0.35; w.rotation.z = k * 0.6; const s = 1 - k * 0.85; w.scale.set(s, s, s); }).then(() => { w.visible = false; });
+      tw(0.8, k => { w.position.y = y0 + k * 0.45; w.rotation.z = k * 0.7; const s = 1 - k * 0.9; w.scale.set(s, s, s); }).then(() => { w.visible = false; });
     }
-    say('');
+    setTask(a.name, `${a.task}（${total} / ${total}）`);
+    setTarget(null);
     await wait(1200);
   },
 
   /* 午：種豆南山下 */
   async sow(a) {
-    await lookAt(mid(standL, BED, 0.3), 1.4);
-    await waitTap(a.id, [pouch], new THREE.Vector3(standL.x, 0.47, standL.z));
-    const home = pouch.position.clone();
-    for (const [i, h] of HOLES.entries()) {
-      const from = pouch.position.clone(), over = new THREE.Vector3(h.x - 0.02, BED.y + 0.32, h.z);
-      await tw(i ? 0.6 : 1.2, k => { pouch.position.lerpVectors(from, over, k); pouch.position.y += Math.sin(k * Math.PI) * (i ? 0.03 : 0.15); pouch.rotation.z = k * 0.9; });
-      const b = beans[i], b0 = new THREE.Vector3(over.x + 0.08, over.y + 0.14, over.z);
+    walkMode(true);
+    // 1. the seed pouch
+    setTarget(V(L.pouch[0], 0.6, L.pouch[1]), 'pouch');
+    setTask(a.name, a.task);
+    await offer([{ id: 'pouch', obj: parts.pouch, pos: V(L.pouch[0], 0, L.pouch[1]), reach: 2.2, label: '拿起' }]);
+    oneShot('pick');
+    const pouchHome = parts.pouch.position.clone();
+    await hold(parts.pouch, V(0.36, -0.44, -0.72), [0.3, 0, 0.2]);
+    setHeld('種子袋');
+    // 2. sow three beans
+    const center = parts.holes[1].clone();
+    setTarget(center, 'beans');
+    let sown = 0;
+    while (sown < parts.holes.length) {
+      setTask(a.name, `${a.task_2}（${sown} / ${parts.holes.length}）`);
+      const left = parts.holes.map((h, i) => i).filter(i => !parts.holeHits[i].userData.done);
+      const item = await offer(left.map(i => ({ id: 'hole', tag: i, obj: parts.holeHits[i], pos: parts.holes[i], reach: 2.3, label: '播種' })));
+      const i = item.tag;
+      parts.holeHits[i].userData.done = true;
+      sown++;
+      if (sown === 1) beacon.visible = false;
+      const from = parts.pouch.getWorldPosition(new THREE.Vector3()), to = parts.holes[i].clone().add(V(0, 0.015, 0));
+      const bean = parts.beans[i];
       oneShot('seed');
-      await tw(0.45, k => { b.position.set(lerp(b0.x, h.x, k), lerp(b0.y, h.y + 0.012, k * k), lerp(b0.z, h.z, k)); }, k => k);
-      log('bean_sown', a.id, i);
+      await tw(0.6, k => { bean.position.set(lerp(from.x, to.x, k), lerp(from.y, to.y, k * k) + Math.sin(k * Math.PI) * 0.1, lerp(from.z, to.z, k)); }, k => k);
     }
-    const end = pouch.position.clone();
-    await tw(1.0, k => { pouch.position.lerpVectors(end, home, k); pouch.rotation.z = lerp(0.9, 0, k); });
-
-    say(a.instruction_2 || '點一下澆水壺，替豆子澆水。');
-    await lookAt(mid(standR, BED, 0.3), 1.4);
-    await waitTap(a.id + '_water', [can], new THREE.Vector3(standR.x, 0.47, standR.z));
-    const from = can.position.clone(), over = new THREE.Vector3(BED.x - 0.34, 0.74, BED.z);
-    const r0 = can.rotation.y;
-    lookAt(new THREE.Vector3(BED.x - 0.1, BED.y + 0.15, BED.z), 1.6);
-    await tw(1.4, k => { can.position.lerpVectors(from, over, k); can.rotation.y = lerp(r0, 0, k); });
-    await tw(0.6, k => { can.rotation.z = lerp(0, -0.55, k); });
-    G.water.on = true; drops.visible = true; waterSound(true);
-    log('watered', a.id);
-    sprouts.forEach(s => { s.visible = true; });
-    await tw(3.4, k => {
-      sprouts.forEach((s, i) => { const kk = THREE.MathUtils.clamp(k * 1.4 - i * 0.2, 0, 1); s.scale.setScalar(Math.max(0.001, kk)); });
-      over.x = BED.x - 0.34 + Math.sin(k * Math.PI * 2) * 0.12; can.position.x = over.x;
-    });
-    G.water.on = false; waterSound(false);
-    await tw(0.6, k => { can.rotation.z = lerp(-0.55, 0, k); });
-    await wait(400);
-    drops.visible = false;
-    const back = can.position.clone();
-    await tw(1.2, k => { can.position.lerpVectors(back, from, k); can.rotation.y = lerp(0, r0, k); });
+    await putDown(parts.pouch, pouchHome, [0, 0, 0]);
+    setHeld('');
+    // 3. water them
+    setTarget(V(L.bucket[0], 0.4, L.bucket[1]), 'bucket');
+    setTask(a.name, a.task_3);
+    await offer([{ id: 'bucket', obj: parts.bucket, pos: V(L.bucket[0], 0, L.bucket[1]), reach: 2.2, label: '舀水' }]);
+    const ladleHome = parts.ladle.position.clone(), ladleRot = parts.ladle.rotation.clone();
+    await hold(parts.ladle, V(0.28, -0.34, -0.6), [0, 0.3, 0]);
+    setHeld('一瓢水');
+    setTarget(center, 'beans');
+    setTask(a.name, '把水澆在剛種下的豆子上');
+    await offer([{ id: 'water', obj: [parts.fieldHit, ...parts.holeHits], pos: center, reach: 2.8, label: '澆水' }]);
+    beacon.visible = false;
+    await tw(0.6, k => { parts.ladle.rotation.z = lerp(0, 1.1, k); });
+    parts.ladle.getWorldPosition(pour.from);
+    pour.to.copy(center);
+    pour.on = true; drops.visible = true; waterSound(true);
+    parts.sprouts.forEach(s => { s.visible = true; });
+    await tw(3.6, k => {
+      parts.ladle.getWorldPosition(pour.from);
+      pour.to.set(lerp(parts.holes[0].x, parts.holes[2].x, k), center.y, center.z);
+      parts.sprouts.forEach((s, i) => s.scale.setScalar(Math.max(0.001, Math.min(1, k * 1.5 - i * 0.22))));
+    }, k => k);
+    pour.on = false; waterSound(false);
+    await tw(0.5, k => { parts.ladle.rotation.z = lerp(1.1, 0, k); });
+    setTimeout(() => { drops.visible = false; }, 700);
+    await putDown(parts.ladle, ladleHome, [ladleRot.x, ladleRot.y, ladleRot.z]);
+    setHeld('');
+    setTarget(null);
+    await wait(900);
   },
 
   /* 暮：帶月荷鋤歸，道狹草木長 */
   async hoe(a) {
-    await lookAt(new THREE.Vector3(hoe.position.x, 0.5, hoe.position.z), 1.4);
-    await waitTap(a.id, [hoe], new THREE.Vector3(hoe.position.x, 0.03, hoe.position.z + 0.12));
-    log('hoe_taken', a.id);
-    camera.attach(hoe);
-    const p0 = hoe.position.clone(), q0 = hoe.quaternion.clone();
-    const p1 = new THREE.Vector3(0.34, -1.05, -0.75), q1 = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.55, 0.2, -0.55));
-    await tw(1.3, k => { hoe.position.lerpVectors(p0, p1, k); hoe.quaternion.slerpQuaternions(q0, q1, k); });
-
-    say('沿著小徑，慢慢走回家。');
-    locked = true;
-    const pts = [[0, 3.6], [-0.7, 3.05], [-1.55, 2.25], [-2.25, 0.5], [-2.1, -2], [-1.7, -4.3], [-1.5, -5.6]];
-    const curve = new THREE.CatmullRomCurve3(pts.map(([x, z]) => new THREE.Vector3(x, 1.42, z)));
-    const dur = 15;
-    log('walk_start', a.id);
-    G.setEnv('night', dur - 1);
-    const y0 = look.yaw, p0p = look.pitch;
-    const steps = setInterval(() => oneShot('step'), 640);
-    await tw(dur, k => {
-      const p = curve.getPointAt(k), ahead = curve.getPointAt(Math.min(1, k + 0.05));
-      camera.position.copy(p);
-      camera.position.y += Math.sin(k * dur * Math.PI * 1.6) * 0.014;
-      const want = Math.atan2(-(ahead.x - p.x), -(ahead.z - p.z));
-      const blendIn = Math.min(1, k * 6);
-      look.yaw = (k < 0.98 ? y0 + angDiff(y0, want) * blendIn : look.yaw);
-      look.pitch = lerp(p0p, 0.02, Math.min(1, k * 4));
-      applyLook();
-    }, k => k);
-    clearInterval(steps);
-    log('walk_end', a.id);
-    setScape('night', 4);
-    locked = false;
-    await lookTo(yawTo(HUT), 0.2, 2.2);
-    say('');
-    await wait(1200);
+    walkMode(true);
+    setTarget(V(L.hoe[0], 0.8, L.hoe[1]), 'hoe');
+    setTask(a.name, a.task);
+    await offer([{ id: 'hoe', obj: parts.hoe, pos: V(L.hoe[0], 0, L.hoe[1]), reach: 2.3, label: '扛起' }]);
+    oneShot('pick');
+    await hold(parts.hoe, V(0.42, -0.95, -0.3), [-0.35, 0.15, -0.55], 1.1);
+    setHeld('鋤頭');
+    const door = V(L.hut.door[0], 1, L.hut.door[1]);
+    setTarget(door, 'door');
+    setTask(a.name, a.task_2);
+    await state.duskReady;
+    log('walk_home', a.id, 'start');
+    const ARRIVE = 2.3;
+    const d0 = Math.max(ARRIVE + 1, flat(door, controls.st.x, controls.st.z));
+    let kMax = 0, nightSound = false;
+    await new Promise(resolve => {
+      const h = () => {
+        const d = flat(door, controls.st.x, controls.st.z);
+        const k = Math.min(1, Math.max(0, 1 - (d - ARRIVE) / (d0 - ARRIVE)));
+        if (k > kMax + 0.002) { kMax = k; env.mixEnv('dusk', 'night', ease(kMax)); }
+        if (kMax > 0.5 && !nightSound) { nightSound = true; setScape('night', 8); log('soundscape', 'night'); }
+        if (d < ARRIVE) { hooks.delete(h); resolve(); }
+      };
+      hooks.add(h);
+    });
+    log('walk_home', a.id, 'arrived');
+    env.setEnv('night', 2);
+    if (!nightSound) setScape('night', 4);
+    setTarget(null);
+    await putDown(parts.hoe, V(1.25, 0.34, L.hut.z + L.hut.d / 2 + 0.12), [0.2, 0, 0.12], 1.1);
+    setHeld('');
+    await wait(600);
   },
 
   /* 結：夕露沾我衣 */
   async linger(a) {
-    await lookTo(look.yaw + Math.PI, -0.32, 3.2);
-    await tw(3, k => { dewMat.uniforms.strength.value = k; });
-    const t0 = now();
-    await new Promise(resolve => {
-      card.innerHTML = `<p class="eyebrow">${esc(a.name)}</p><p class="lede">${esc(a.instruction)}</p><button class="ghost" id="lok" type="button" hidden>好了</button>`;
-      panel.hidden = false;
-      setTimeout(() => { const b = $('#lok'); if (b) { b.hidden = false; b.focus(); } }, 8000);
-      $('#lok').addEventListener('click', () => { panel.hidden = true; resolve(); });
-    });
+    walkMode(true);
+    controls.faceTo(0, 0.3, -1.5, 3.2);
+    tw(3.5, k => { W.dewMat.uniforms.strength.value = k; });
+    setTask(a.name, a.task);
+    const t0 = now(), m0 = controls.st.moved;
+    await wait(10000);
+    setTask(a.name, `${a.task}。想好了，就回屋歇息吧。`);
+    await offer([{ id: 'rest', global: true, label: '回屋歇息' }]);
     log('linger', a.id, now() - t0);
-    say('');
+    log('linger_distance', a.id, (controls.st.moved - m0).toFixed(1));
   },
 };
 
 /* =====================================================================
    SESSION FLOW
    ===================================================================== */
-let viewTimer = 0;
+const NUM = ['一', '二', '三', '四', '五', '六', '七', '八'];
 async function runSession() {
+  hooks.delete(drift);
+  controls.place(L.start[0], L.start[1], 0, -0.04);
   state.log = [];
+  state.trail = [];
   state.t0 = performance.now();
   state.running = true;
-  log('session_start', '', new Date().toISOString());
+  log('session_start', W.tier, new Date().toISOString());
   log('soundscape', 'city');
-  viewTimer = setInterval(() => log('view', '', `${look.yaw.toFixed(2)};${look.pitch.toFixed(2)}`), 1000);
   $('#hud').hidden = false;
+  setTask('', '');
+  setChapter('序・入園之前', '歸去來', 'morning');
+  setTarget(null);
+  walkMode(false);
 
   const pre = state.questions.filter(q => q.phase === 'pre');
   const post = state.questions.filter(q => q.phase === 'post');
-  $('#step').textContent = '開始之前';
-  say('先感受一下此刻的自己。');
-  await askSliders(pre, '開始之前');
+  for (const q of pre) await askRating(q, '開始之前');
 
   for (const [i, a] of state.actions.entries()) {
-    $('#step').textContent = `第 ${i + 1} / ${state.actions.length} 段・${a.name}`;
-    say(a.instruction);
+    state.stage = i;
+    const tag = `第${NUM[i] || i + 1}段`;
+    setChapter(`${tag}・${a.time_label || ''}`, a.name, a.time_of_day);
     log('action_start', a.id);
-    if (a.time_of_day) G.setEnv(a.time_of_day, 6);
+    if (a.time_of_day && a.target !== 'linger') {
+      const p = env.setEnv(a.time_of_day, i === 0 ? 0.01 : 7);
+      if (a.target === 'hoe') state.duskReady = p;
+    }
+    await say('旁白', tag, a.narration || a.task || '', '好');
     const run = BEHAVIOURS[a.target];
     if (run) await run(a);
     else console.warn(`actions.csv: unknown target "${a.target}" for ${a.id}`);
     log('action_complete', a.id);
-    say('');
-    await showPoem(a);
-    await askSliders([{ id: 'relax_after_' + a.id, text: a.rating_prompt || '此刻你有多放鬆？', min: 0, max: 10, min_label: '完全不放鬆', max_label: '非常放鬆' }], a.name + '之後');
+    walkMode(false);
+    setTask('', '');
+    await showPoem(a, tag);
+    await askRating({ id: 'relax_after_' + a.id, text: a.rating_prompt || '此刻你有多放鬆？', min: 0, max: 10, min_label: '完全不放鬆', max_label: '非常放鬆' }, tag);
   }
 
-  $('#step').textContent = '結束';
-  say('最後，回想剛才在園子裡的這一天。');
-  await askSliders(post, '體驗之後');
+  state.stage = state.actions.length;
+  setChapter('結・回到屋裡', '但使願無違', 'night');
+  for (const [i, q] of post.entries()) await askRating(q, '體驗之後', `${i + 1} / ${post.length}`);
   log('session_end');
-  clearInterval(viewTimer);
   state.running = false;
   $('#hud').hidden = true;
   showResult();
 }
 
 /* =====================================================================
-   RESULT: relaxation over the session, with each stage marked
+   RESULT: relaxation over time, and where the person walked
    ===================================================================== */
+const STAGE_COL = ['#9fc7b4', '#e2cb82', '#e8a06a', '#c08ac6', '#8fb0e8'];
 function showResult() {
   const ratings = state.log.filter(e => e.type === 'rating');
   const relax = ratings.filter(e => e.id.startsWith('relax'));
   const done = state.log.filter(e => e.type === 'action_complete');
   const end = state.log.at(-1).t || 1;
-  const W = 640, H = 300, L = 52, R = 60, T = 36, B = 48;
-  const X = t => L + (t / end) * (W - L - R), Y = v => T + (1 - v / 10) * (H - T - B);
-  const label = id => {
-    if (id === 'relax_pre') return '開始前';
-    if (id === 'relax_post') return '結束時';
-    const a = state.actions.find(x => 'relax_after_' + x.id === id);
-    return a ? a.name : id;
-  };
-  const name = id => (state.actions.find(a => a.id === id) || {}).name || id;
+  const Wd = 620, H = 300, Lm = 50, Rm = 24, T = 34, B = 54;
+  const X = t => Lm + (t / end) * (Wd - Lm - Rm), Y = v => T + (1 - v / 10) * (H - T - B);
+  const label = id => id === 'relax_pre' ? '開始前' : id === 'relax_post' ? '結束時' : (state.actions.find(x => 'relax_after_' + x.id === id) || {}).name || id;
   const pts = relax.map(e => [X(e.t), Y(Number(e.value))]);
-  const svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="放鬆程度隨活動進行的變化">
-    ${[0, 2, 4, 6, 8, 10].map(v => `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="rgba(34,48,42,.1)"/><text x="${L - 10}" y="${Y(v) + 4}" text-anchor="end" font-size="13" fill="#55665c">${v}</text>`).join('')}
-    <text x="14" y="${T + (H - T - B) / 2}" font-size="12" fill="#55665c" transform="rotate(-90 14 ${T + (H - T - B) / 2})" text-anchor="middle">放鬆程度（0–10）</text>
-    ${done.map((e, i) => `<line x1="${X(e.t)}" x2="${X(e.t)}" y1="${T}" y2="${H - B}" stroke="#b5762a" stroke-dasharray="4 4"/><text x="${X(e.t)}" y="${H - B + (i % 2 ? 34 : 18)}" text-anchor="middle" font-size="13" fill="#b5762a">${esc(name(e.id))}</text>`).join('')}
-    <polyline points="${pts.map(p => p.join(',')).join(' ')}" fill="none" stroke="#3d6b52" stroke-width="2.5"/>
-    ${relax.map((e, i) => `<circle cx="${pts[i][0]}" cy="${pts[i][1]}" r="5" fill="#3d6b52"/><text x="${pts[i][0]}" y="${pts[i][1] + (i % 2 ? 24 : -12)}" text-anchor="middle" font-size="13" font-weight="500" fill="#22302a">${esc(label(e.id))} ${e.value}</text>`).join('')}
-    <text x="${W - R}" y="${T - 14}" text-anchor="end" font-size="12" fill="#55665c">經過時間 ${Math.round(end / 1000)} 秒</text>
+  const tick = 'rgba(241,233,216,.12)', txt = '#bdb4a1';
+  $('#timeline').innerHTML = `<svg viewBox="0 0 ${Wd} ${H}" role="img" aria-label="放鬆程度隨活動進行的變化">
+    ${[0, 2, 4, 6, 8, 10].map(v => `<line x1="${Lm}" x2="${Wd - Rm}" y1="${Y(v)}" y2="${Y(v)}" stroke="${tick}"/><text x="${Lm - 10}" y="${Y(v) + 4}" text-anchor="end" font-size="13" fill="${txt}">${v}</text>`).join('')}
+    ${done.map((e, i) => `<line x1="${X(e.t)}" x2="${X(e.t)}" y1="${T}" y2="${H - B}" stroke="${STAGE_COL[i % 5]}" stroke-dasharray="3 4" opacity=".7"/><text x="${X(e.t)}" y="${H - B + (i % 2 ? 36 : 20)}" text-anchor="middle" font-size="13" fill="${STAGE_COL[i % 5]}">${esc((state.actions.find(a => a.id === e.id) || {}).name || e.id)}</text>`).join('')}
+    <polyline points="${pts.map(p => p.join(',')).join(' ')}" fill="none" stroke="#d2b77e" stroke-width="2.5"/>
+    ${relax.map((e, i) => `<circle cx="${pts[i][0]}" cy="${pts[i][1]}" r="5" fill="#f1e9d8" stroke="#d2b77e" stroke-width="2"/><text x="${pts[i][0]}" y="${pts[i][1] + (i % 2 ? 24 : -12)}" text-anchor="middle" font-size="13" fill="#f1e9d8">${esc(label(e.id))} ${e.value}</text>`).join('')}
+    <text x="${Wd - Rm}" y="${T - 14}" text-anchor="end" font-size="12" fill="${txt}">經過 ${Math.round(end / 1000)} 秒</text>
   </svg>`;
-  $('#timeline').innerHTML = svg;
-  const extra = ratings.filter(e => e.id.startsWith('prs_'));
-  $('#post-scores').innerHTML = extra.map(e => {
+
+  // top-down map: the start is at the bottom, the hut at the top
+  const x0 = -11, x1 = 11, z0 = -13.5, z1 = 16.5, k = 13;
+  const MX = x => (x - x0) * k, MZ = z => (z - z0) * k;
+  const MW = (x1 - x0) * k, MH = (z1 - z0) * k;
+  const rect = (b, fill, stroke) => `<rect x="${MX(b.x - b.w / 2)}" y="${MZ(b.z - b.d / 2)}" width="${b.w * k}" height="${b.d * k}" fill="${fill}" stroke="${stroke}"/>`;
+  const seg = [];
+  let cur = null;
+  state.trail.forEach(([x, z, s]) => { if (!cur || cur.s !== s) { if (cur) cur.p.push([x, z]); cur = { s, p: [] }; seg.push(cur); } cur.p.push([x, z]); });
+  const walked = state.trail.reduce((acc, p, i, arr) => acc + (i ? Math.hypot(p[0] - arr[i - 1][0], p[1] - arr[i - 1][1]) : 0), 0);
+  $('#pathmap').innerHTML = `<svg viewBox="0 0 ${MW} ${MH}" role="img" aria-label="走動軌跡俯視圖">
+    <rect x="${MX(L.fence.x0)}" y="${MZ(L.fence.z0)}" width="${(L.fence.x1 - L.fence.x0) * k}" height="${(L.fence.z1 - L.fence.z0) * k}" fill="rgba(127,174,150,.08)" stroke="rgba(210,183,126,.45)" stroke-dasharray="4 3"/>
+    ${PATHS.map(l => `<polyline points="${l.map(([x, z]) => `${MX(x)},${MZ(z)}`).join(' ')}" fill="none" stroke="rgba(241,233,216,.12)" stroke-width="${0.9 * k}" stroke-linecap="round" stroke-linejoin="round"/>`).join('')}
+    ${rect(L.hut, 'rgba(210,183,126,.25)', 'rgba(210,183,126,.6)')}
+    ${rect(L.veg, 'rgba(120,90,60,.35)', 'none')}${rect(L.beans, 'rgba(120,90,60,.35)', 'none')}
+    <circle cx="${MX(L.pond.x)}" cy="${MZ(L.pond.z)}" r="${L.pond.r * k}" fill="rgba(110,150,170,.3)"/>
+    <text x="${MX(L.hut.x)}" y="${MZ(L.hut.z) + 5}" text-anchor="middle" font-size="14" fill="#f1e9d8">草屋</text>
+    <text x="${MX(L.veg.x)}" y="${MZ(L.veg.z) + 5}" text-anchor="middle" font-size="12" fill="#bdb4a1">菜圃</text>
+    <text x="${MX(L.beans.x)}" y="${MZ(L.beans.z) + 5}" text-anchor="middle" font-size="12" fill="#bdb4a1">豆田</text>
+    <text x="${MX(L.pond.x)}" y="${MZ(L.pond.z) + 4}" text-anchor="middle" font-size="12" fill="#bdb4a1">池</text>
+    <text x="${MX(L.eastFence.x) - 4}" y="${MZ((L.eastFence.z0 + L.eastFence.z1) / 2)}" text-anchor="end" font-size="12" fill="#bdb4a1">東籬</text>
+    ${seg.filter(s => s.s >= 0 && s.s < 5).map(s => `<polyline points="${s.p.map(([x, z]) => `${MX(x).toFixed(1)},${MZ(z).toFixed(1)}`).join(' ')}" fill="none" stroke="${STAGE_COL[s.s]}" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>`).join('')}
+    <circle cx="${MX(L.start[0])}" cy="${MZ(L.start[1])}" r="5" fill="#f1e9d8"/><text x="${MX(L.start[0]) + 9}" y="${MZ(L.start[1]) + 4}" font-size="12" fill="#f1e9d8">起點</text>
+  </svg>
+  <p class="fine">${state.actions.map((a, i) => `<span style="color:${STAGE_COL[i % 5]}">━ ${esc(a.name)}</span>`).join('　')}</p>`;
+
+  const extra = ratings.filter(e => e.id.startsWith('prs_')).map(e => {
     const q = state.questions.find(x => x.id === e.id) || {};
-    return `<div class="score">${esc(q.subscale || e.id)}<b>${e.value}</b></div>`;
-  }).join('');
+    return [q.subscale || e.id, e.value];
+  });
+  const lingerMs = Number((state.log.find(e => e.type === 'linger') || {}).value || 0);
+  const cards = [...extra, ['走動距離（公尺）', Math.round(walked)], ['月下停留（秒）', Math.round(lingerMs / 1000)], ['使用「帶我過去」', `${state.autoWalks} 次`]];
+  $('#post-scores').innerHTML = cards.map(([k2, v]) => `<div class="score">${esc(k2)}<b>${esc(v)}</b></div>`).join('');
   $('#result').hidden = false;
 }
 
@@ -551,18 +659,35 @@ $('#download').addEventListener('click', downloadCSV);
 $('#restart').addEventListener('click', () => location.reload());
 $('#start').addEventListener('click', () => {
   audioInit();
+  setScape('city', 0.1);
   $('#title').hidden = true;
   runSession();
 });
 
-loadData().then(() => {
-  const b = $('#start');
-  b.disabled = false;
-  b.textContent = '推開柴門';
-}).catch(err => {
+env.setEnv('morning', 0);
+// a slow drift of the camera behind the title card
+controls.place(0, 15.2, -0.05, -0.02);
+const drift = (dt, t) => { if (!state.running) controls.st.yaw = Math.sin(t * 0.08) * 0.12; };
+hooks.add(drift);
+requestAnimationFrame(frame);
+
+let dataReady = false, texReady = false;
+const startBtn = $('#start');
+function ready() {
+  if (!dataReady || !texReady) return;
+  startBtn.disabled = false;
+  startBtn.textContent = '開始';
+}
+THREE.DefaultLoadingManager.onProgress = (_u, loaded, total) => { if (!texReady) startBtn.textContent = `載入中 ${Math.round((loaded / total) * 100)}%`; };
+THREE.DefaultLoadingManager.onLoad = () => { texReady = true; ready(); };
+setTimeout(() => { if (!texReady) { texReady = true; ready(); } }, 15000);
+loadData().then(() => { dataReady = true; ready(); }).catch(err => {
   console.error(err);
   const e = $('#load-error');
   e.hidden = false;
   e.textContent = '無法讀取 data/ 資料夾裡的 CSV 檔。請透過 GitHub Pages 網址或本機伺服器開啟，不能直接雙擊 index.html。';
-  $('#start').textContent = '無法開始';
+  startBtn.textContent = '無法開始';
 });
+
+// for automated checks: ?debug=1 exposes a few internals
+if (new URLSearchParams(location.search).has('debug')) window.__vg = { state, controls, get offers() { return offers; }, use, W };

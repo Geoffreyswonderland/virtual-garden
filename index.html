@@ -2,65 +2,114 @@
 <html lang="zh-Hant-TW">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>歸園田居｜虛擬園藝活動雛形</title>
-<meta name="description" content="以陶淵明〈歸園田居〉為故事線的虛擬園藝活動雛形：從城市推開柴門，除草、種豆，在月色中荷鋤而歸，並記錄每一段之後的放鬆程度。">
+<meta name="description" content="以陶淵明〈歸園田居〉為故事線的虛擬園藝活動雛形：自由走動，推開柴門、除草、種豆，在月色中荷鋤而歸，並記錄每一段之後的放鬆程度與走動軌跡。">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&family=Noto+Sans+TC:wght@400;500;700&display=swap">
-<link rel="stylesheet" href="css/style.css?v=8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&family=Noto+Serif+TC:wght@600;900&display=swap">
+<link rel="stylesheet" href="css/style.css?v=9">
 <script type="importmap">
 { "imports": {
-  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  "three": "./lib/three/three.module.js",
+  "three/addons/": "./lib/three/addons/"
 } }
 </script>
 </head>
 <body>
-<canvas id="scene" aria-label="虛擬田園"></canvas>
+<canvas id="scene" aria-label="虛擬田園，可以拖曳環顧、用搖桿走動"></canvas>
 
-<header id="hud" hidden>
-  <span id="step"></span>
-  <p id="instruction" aria-live="polite"></p>
-  <button id="sound" type="button" aria-pressed="true">聲音：開</button>
-</header>
+<div id="hud" hidden>
+  <section id="chapter" class="panel">
+    <div class="seal" aria-hidden="true">歸</div>
+    <div class="chap-text">
+      <p id="chap-step" class="chap-step"></p>
+      <h2 id="chap-title" class="chap-title"></h2>
+      <div class="daybar" aria-hidden="true"><span id="day-fill"></span><i id="day-dot"></i></div>
+      <p id="held" class="held"></p>
+    </div>
+  </section>
+
+  <section id="task" class="panel" aria-live="polite">
+    <p class="task-head"><span class="diamond"></span>任務</p>
+    <h3 id="task-title"></h3>
+    <p id="task-text"></p>
+    <button id="guide-me" type="button" class="link-btn">帶我過去</button>
+  </section>
+
+  <nav id="menu" aria-label="選單">
+    <button id="btn-help" type="button"><span>說明</span></button>
+    <button id="btn-sound" type="button" aria-pressed="true"><span>聲音</span></button>
+    <button id="btn-full" type="button"><span>全屏</span></button>
+  </nav>
+
+  <div id="stick" aria-label="移動搖桿"><div id="knob"></div></div>
+  <p id="keys-hint">WASD／方向鍵走動・拖曳畫面環顧</p>
+  <button id="act" type="button" hidden></button>
+  <div id="edge" hidden><span class="arrow"></span><span id="edge-dist"></span></div>
+  <p id="toast" role="status"></p>
+</div>
+
+<section id="dlg" class="panel" hidden>
+  <div id="dlg-speaker" class="dlg-speaker"></div>
+  <div id="dlg-tag" class="dlg-tag"></div>
+  <div id="dlg-body" class="dlg-body"></div>
+  <div id="dlg-actions" class="dlg-actions"></div>
+</section>
 
 <section id="title" class="overlay">
-  <div class="card intro">
-    <p class="eyebrow">虛擬園藝活動・展示雛形</p>
+  <div class="title-card panel">
+    <div class="seal big" aria-hidden="true">歸</div>
+    <p class="eyebrow">虛擬園藝活動・研究雛形</p>
     <h1>歸園田居</h1>
-    <p class="lede">離開城市，推開柴門，在園子裡過完一天：清晨除草、正午種豆，傍晚扛著鋤頭在月色中走回家。每一段結束後，會請你說說此刻的感受。</p>
+    <p class="lede">離開城市，推開柴門，在園子裡過完一天：清晨除草、正午種豆，黃昏扛著鋤頭，在月色中走回草屋。每一段結束後，會請你說說此刻的感受。</p>
     <ul class="facts">
-      <li>約 6 分鐘・建議戴耳機</li>
-      <li>拖曳畫面可以環顧四周</li>
-      <li>這是展示雛形，資料只留在這台裝置上，不會上傳</li>
+      <li>約 8 分鐘・建議戴耳機</li>
+      <li>左下角搖桿（或 WASD）走動，拖曳畫面環顧，點東西就能互動</li>
+      <li>這是展示雛形，紀錄只留在這台裝置上，不會上傳</li>
     </ul>
     <p id="load-error" class="error" hidden></p>
-    <button id="start" class="primary" type="button" disabled>載入中…</button>
+    <button id="start" class="btn-primary" type="button" disabled>載入中…</button>
   </div>
 </section>
 
-<aside id="poem-box" aria-live="polite" hidden></aside>
-
-<section id="panel" class="overlay bottom" hidden>
-  <div class="card" id="panel-card"></div>
+<section id="help" class="overlay" hidden>
+  <div class="panel help-card">
+    <h2>怎麼玩</h2>
+    <ul class="facts">
+      <li><b>走動</b>：左下角的搖桿；電腦也可以用 WASD 或方向鍵。</li>
+      <li><b>環顧</b>：在畫面上拖曳。</li>
+      <li><b>互動</b>：走近發光的地方，點東西本身，或點右下角的圓形按鈕。</li>
+      <li><b>迷路了</b>：點右上角任務框裡的「帶我過去」。</li>
+    </ul>
+    <p class="fine">這個雛形用來展示「過程測量」：傳統研究只在活動前後各問一次，這裡記錄的是活動進行中每一段之後的感受、走動軌跡與停留時間。</p>
+    <button id="help-close" class="btn-primary" type="button">回到園子</button>
+  </div>
 </section>
 
 <section id="result" class="overlay" hidden>
-  <div class="card wide">
+  <div class="panel result-card">
     <p class="eyebrow">你的療癒歷程</p>
     <h2>這一天裡的你</h2>
-    <p class="lede">傳統研究只在活動前後各問一次；這條時間軸記錄了活動「過程中」的變化。</p>
-    <div id="timeline" class="chart"></div>
+    <div class="result-grid">
+      <figure>
+        <figcaption>每一段之後的放鬆程度</figcaption>
+        <div id="timeline" class="chart"></div>
+      </figure>
+      <figure>
+        <figcaption>你走過的路</figcaption>
+        <div id="pathmap" class="chart"></div>
+      </figure>
+    </div>
     <div id="post-scores"></div>
     <div class="row">
-      <button id="download" class="primary" type="button">下載紀錄（CSV）</button>
-      <button id="restart" type="button">再體驗一次</button>
+      <button id="download" class="btn-primary" type="button">下載紀錄（CSV）</button>
+      <button id="restart" class="btn-ghost" type="button">再體驗一次</button>
     </div>
     <p class="fine">示意題目改寫自知覺恢復量表的概念，正式研究需使用經驗證的中文版量表。</p>
   </div>
 </section>
 
-<script type="module" src="js/main.js?v=8"></script>
+<script type="module" src="js/main.js?v=9"></script>
 </body>
 </html>
