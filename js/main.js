@@ -549,8 +549,8 @@ const basketLabel = (() => {
   g.fillStyle = '#f1e9d8'; g.font = '900 44px "Noto Serif TC", serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
   g.fillText('竹簍', 128, 46);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
-  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, transparent: true }));
-  sp.scale.set(0.9, 0.39, 1);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, transparent: true, sizeAttenuation: false }));
+  sp.scale.set(0.11, 0.048, 1);   // constant size on screen
   sp.renderOrder = 20;
   sp.visible = false;
   scene.add(sp);
