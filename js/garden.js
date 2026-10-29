@@ -43,7 +43,7 @@ export function createGarden(canvas) {
 
   const scene = new THREE.Scene();
   const HORIZON = new THREE.Color(0.86, 0.82, 0.72);
-  scene.fog = new THREE.FogExp2(HORIZON.clone(), 0.022);
+  scene.fog = new THREE.FogExp2(HORIZON.clone(), 0.017);
 
   const camera = new THREE.PerspectiveCamera(55, 1, 0.05, 700);
   camera.position.set(0, 1.35, 3.6);
@@ -172,17 +172,18 @@ export function createGarden(canvas) {
     (Math.abs(x + 0.2) < 0.75 && z > -4 && z < 3.3) ||
     Math.hypot(x + 3.4, z + 1.8) < 2.2 ||
     (Math.abs(x) < 1.7 && z > 1.0 && z < 2.5) ||
-    (x > 1.2 && x < 3.4 && z > -3.2 && z < 1.2);
+    (x > 1.2 && x < 3.4 && z > -3.2 && z < 1.2) ||
+    (z > 0.6 && Math.abs(x) < 3.2) || z > 2.4;
   [0, Math.PI / 2].forEach(rot => {
-    const N = 1400, im = new THREE.InstancedMesh(grassGeo, grassMat, N), m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
+    const N = 1100, im = new THREE.InstancedMesh(grassGeo, grassMat, N), m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
     let n = 0;
     while (n < N) {
       const r = Math.sqrt(srand()) * 16 + 0.8, a = srand() * TAU, x = Math.cos(a) * r, z = Math.sin(a) * r - 2;
       if (blocked(x, z) || z > 3.2) continue;
       e.set(0, rot + srange(0, TAU), 0);
       q.setFromEuler(e);
-      const s = srange(0.6, 1.5);
-      m.compose(new THREE.Vector3(x, 0, z), q, new THREE.Vector3(s, s * srange(0.8, 1.3), s));
+      const s = srange(0.45, 1.05);
+      m.compose(new THREE.Vector3(x, 0, z), q, new THREE.Vector3(s, s * srange(0.7, 1.1), s));
       im.setMatrixAt(n++, m);
     }
     im.receiveShadow = true;
@@ -262,12 +263,12 @@ export function createGarden(canvas) {
   const MOUNTAIN = new THREE.Vector3(10, 12, -48);
 
   /* ---------- stepping-stone path and pond ---------- */
-  const stoneMat = std(0xb3ad9d, { roughness: 0.95 });
+  const stoneMat = std(0x8f897c, { roughness: 0.95 });
   for (let i = 0; i < 8; i++) {
     const st = add(jitter(new THREE.CylinderGeometry(0.34, 0.38, 0.08, 10), 0.25), stoneMat, Math.sin(i * 1.3) * 0.22 - 0.2, 0.03, 2.75 - i * 0.78);
     st.rotation.y = i * 1.7;
   }
-  const pond = add(new THREE.CircleGeometry(1.75, 48), std(0x2e4c4a, { roughness: 0.04, metalness: 0, envMapIntensity: 1.3 }), -3.4, 0.02, -1.8, scene, false, true);
+  const pond = add(new THREE.CircleGeometry(1.75, 48), std(0x1f3a37, { roughness: 0.12, metalness: 0, envMapIntensity: 0.9 }), -3.4, 0.02, -1.8, scene, false, true);
   pond.rotation.x = -Math.PI / 2;
   const rockMat = std(0x8f8a7c, { roughness: 0.95 });
   for (let i = 0; i < 18; i++) {
