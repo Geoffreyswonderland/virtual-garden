@@ -21,7 +21,7 @@ export function createControls({ camera, canvas, colliders, isWalkable, onTap, o
     x: 0, z: 0, yaw: 0, pitch: -0.05,
     vx: 0, vz: 0, enabled: false, moved: 0,
     stick: { x: 0, y: 0, id: null }, keys: new Set(),
-    route: null, turn: null, turnV: 0,
+    route: null, turn: null, turnV: 0, crouch: 0, crouchTarget: 0,
   };
 
   /* ---------- collision ---------- */
@@ -240,7 +240,9 @@ export function createControls({ camera, canvas, colliders, isWalkable, onTap, o
       st.pitch = T.p0 + (T.p1 - T.p0) * e;
       if (T.t >= T.dur) st.turn = null;
     }
-    camera.position.set(st.x, EYE, st.z);
+    // crouching (to sow or pull weeds) eases the eye down and back up
+    st.crouch += ((st.crouchTarget || 0) - st.crouch) * Math.min(1, dt * 5);
+    camera.position.set(st.x, EYE + st.crouch, st.z);
     camera.rotation.set(st.pitch, st.yaw, 0, 'YXZ');
     return moved;
   }

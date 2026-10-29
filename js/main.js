@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { parseCSV } from './csv.js?v=16';
 import { createWorld } from './world/index.js?v=26';
-import { createControls } from './controls.js?v=18';
+import { createControls } from './controls.js?v=29';
 import { audioInit, setScape, oneShot, waterSound, toggleSound } from './audio.js?v=16';
 import { L, PATHS, APPROACH, EYE } from './world/layout.js?v=18';
 import { pathDist } from './world/grass.js?v=21';
@@ -469,6 +469,7 @@ function updateHold(dt, t) {
   showProgress(it, holdSt.p);
   if (holdSt.p >= 1) {
     flashDone(it);
+    it.onHold && it.onHold(false);
     holdSt.active = false; holdSt.item = null; holdSt.p = 0;
     controls.st.lookLock = false;
     actEl.classList.remove('holding');
@@ -802,7 +803,7 @@ const BEHAVIOURS = {
       setTask(a.name, `${a.task}（${pulled} / ${total}）　按住草，把它連根拔起`);
       const left = parts.weeds.filter(w => !w.userData.pulled);
       const item = await offer(left.map(w => ({
-        id: 'weed', tag: parts.weeds.indexOf(w), obj: w, pos: w.position, reach: 2.4, label: '按住拔草',
+        id: 'weed', tag: parts.weeds.indexOf(w), obj: w, pos: w.position, reach: 1.5, label: '按住拔草',
         hold: 1.3, holdHint: '要按住草不放，才拔得起來', tooShort: '根還抓著土，再按久一點',
         // the weed resists: it trembles and lifts a little as you pull
         onProgress: (p, t) => {
@@ -811,7 +812,7 @@ const BEHAVIOURS = {
           w.rotation.x = Math.sin(t * 38) * 0.06 * p;
           w.rotation.z = Math.sin(t * 31 + 1) * 0.06 * p;
         },
-        onHold: on => { if (on) oneShot('pull', 0.5); },
+        onHold: on => { if (on) oneShot('pull', 0.5); controls.st.crouchTarget = on ? -0.6 : 0; },
       })));
       const w = item.obj;
       w.userData.pulled = true;
@@ -873,7 +874,7 @@ const BEHAVIOURS = {
       setTask(a.name, count(a.task_2, n));
       step(1);
       const item = await offer(S.filter(sp => !sp.dug).map(sp => ({
-        id: 'dig', tag: S.indexOf(sp), obj: sp.hit, pos: sp.pos, reach: 2.3, label: '按住挖洞',
+        id: 'dig', tag: S.indexOf(sp), obj: sp.hit, pos: sp.pos, reach: 1.4, label: '按住挖洞',
         hold: 1.4, decay: false, holdHint: '按住，用鋤頭一下一下把土挖開',
         onHold: chop(sp),
         onProgress: p => { sp.hole.scale.setScalar(Math.max(0.001, p)); sp.pile.scale.y = Math.max(0.001, p * 0.9); sp.stick.visible = p < 0.5; },
@@ -895,19 +896,24 @@ const BEHAVIOURS = {
     setHeld('鋤頭、種子袋');
     setTarget(rowC, 'beans');
     beacon.visible = false;
-    coach('sow', '怎麼放豆子', ['走到剛挖好的洞旁邊', '點一下洞，或按右下角的「放入豆子」', '每個洞會放進三顆豆子']);
+    coach('sow', '怎麼放豆子', ['走到剛挖好的洞旁邊，要站得很近（圈圈變綠）', '點一下洞，或按右下角的「放入豆子」', '會蹲下來，把三顆豆子放進洞裡', '三個洞都要一個一個走過去放']);
     for (let n = 0; n < S.length; n++) {
       setTask(a.name, count(a.task_4, n));
       step(3);
-      const item = await offer(S.filter(sp => !sp.sown).map(sp => ({ id: 'sow', tag: S.indexOf(sp), obj: sp.hit, pos: sp.pos, reach: 2.3, label: '放入豆子' })));
+      const item = await offer(S.filter(sp => !sp.sown).map(sp => ({ id: 'sow', tag: S.indexOf(sp), obj: sp.hit, pos: sp.pos, reach: 1.0, label: '放入豆子' })));
       const sp = S[item.tag];
       sp.sown = true;
+      // crouch beside the hole and drop the beans in by hand
+      controls.st.crouchTarget = -0.75;
+      controls.faceTo(sp.pos.x, sp.pos.y, sp.pos.z, 0.5);
+      await wait(550);
       const from = parts.pouch.getWorldPosition(new THREE.Vector3());
       for (const [k, b] of sp.seeds.entries()) {
         const to = sp.pos.clone().add(V(Math.cos(k * 2.1) * 0.03, -0.004, Math.sin(k * 2.1) * 0.03));
         oneShot('seed');
         await tw(0.4, q => { b.position.set(lerp(from.x, to.x, q), lerp(from.y, to.y, q * q) + Math.sin(q * Math.PI) * 0.06, lerp(from.z, to.z, q)); }, q => q);
       }
+      controls.st.crouchTarget = 0;
     }
     await putDown(parts.pouch, pouchHome, [0, 0, 0]);
     setHeld('鋤頭');
@@ -919,7 +925,7 @@ const BEHAVIOURS = {
       setTask(a.name, count(a.task_5, n));
       step(4);
       const item = await offer(S.filter(sp => !sp.covered).map(sp => ({
-        id: 'cover', tag: S.indexOf(sp), obj: sp.hit, pos: sp.pos, reach: 2.3, label: '按住蓋土',
+        id: 'cover', tag: S.indexOf(sp), obj: sp.hit, pos: sp.pos, reach: 1.4, label: '按住蓋土',
         hold: 1.1, decay: false, holdHint: '按住，用鋤頭把旁邊的土撥回洞裡',
         onHold: chop(sp),
         onProgress: p => {
@@ -987,7 +993,7 @@ const BEHAVIOURS = {
       target.approach = approachPoint({ pos: target.pos, reach: 1.2 }) || target.approach;
       setTask(a.name, `走到土堆旁，按住澆水（${n} / ${S.length}）`);
       const item = await offer(S.filter(sp => !sp.watered).map(sp => ({
-        id: 'water', tag: S.indexOf(sp), obj: sp.hit, pos: sp.pos, reach: 1.6, label: '按住澆水',
+        id: 'water', tag: S.indexOf(sp), obj: sp.hit, pos: sp.pos, reach: 1.2, label: '按住澆水',
         hold: 1.4, decay: false, holdHint: '走到土堆旁，按住才會倒水',
         onHold: on => { pour.on = on; pour.to.copy(sp.pos); drops.visible = true; waterSound(on); if (on) { beacon.visible = false; hideCoach(); } },
         onProgress: p => {
