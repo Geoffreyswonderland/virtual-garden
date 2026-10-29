@@ -28,7 +28,8 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #dfe9e0; col
 .overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(34, 48, 42, 0.18); overflow-y: auto; }
 .overlay.bottom { align-items: flex-end; background: none; pointer-events: none; padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 20px); }
 .overlay.bottom .card { pointer-events: auto; }
-.card { width: min(100%, 520px); background: var(--mist); border: 1px solid var(--line); border-radius: 14px; padding: 24px; backdrop-filter: blur(6px); display: flex; flex-direction: column; gap: 14px; }
+.card { width: min(100%, 520px); background: var(--mist); border: 1px solid var(--line); border-radius: 14px; padding: 24px; backdrop-filter: blur(8px); display: flex; flex-direction: column; gap: 14px; box-shadow: 0 10px 40px rgba(20, 30, 25, .12); }
+.overlay.bottom .card { width: min(100%, 420px); padding: 16px 20px; gap: 10px; background: rgba(248, 250, 247, .86); }
 .card.wide { width: min(100%, 760px); }
 .eyebrow { margin: 0; font-size: 13px; letter-spacing: .12em; color: var(--jade); }
 h1, h2 { margin: 0; font-family: var(--poem); font-weight: 700; line-height: 1.3; text-wrap: balance; }
@@ -46,11 +47,20 @@ button:disabled { opacity: .5; cursor: default; }
 button:focus-visible, input:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
 #sound { font-size: 13px; padding: 4px 12px; }
 
-/* poem */
-.poem { font-family: var(--poem); font-size: clamp(26px, 6vw, 34px); line-height: 1.6; text-align: center; margin: 4px 0 0; opacity: 0; transition: opacity 2.2s ease; letter-spacing: .08em; }
-.poem.on { opacity: 1; }
-.poem-src { text-align: center; margin: 0; color: var(--ink-soft); font-size: 14px; opacity: 0; transition: opacity 1.6s ease 1.2s; }
-.poem-src.on { opacity: 1; }
+/* poem: vertical, right to left, fading in over the garden */
+#poem-box {
+  position: fixed; top: 50%; right: clamp(16px, 8vw, 96px); transform: translateY(-50%);
+  display: flex; flex-direction: row-reverse; align-items: flex-start; gap: 18px;
+  padding: 28px 22px; border-radius: 14px;
+  background: radial-gradient(ellipse at center, rgba(250, 247, 238, 0.78), rgba(250, 247, 238, 0.42) 70%, rgba(250, 247, 238, 0));
+  opacity: 0; transition: opacity 1.8s ease; pointer-events: none;
+}
+#poem-box.on { opacity: 1; pointer-events: auto; }
+.poem-lines { writing-mode: vertical-rl; display: flex; flex-direction: column; gap: 14px; font-family: var(--poem); font-size: clamp(26px, 4.4vh, 40px); letter-spacing: .32em; color: #1f2a24; text-shadow: 0 0 18px rgba(255, 252, 240, .9); }
+.poem-src, .poem-note { writing-mode: vertical-rl; margin: 0; font-family: var(--poem); font-size: 15px; letter-spacing: .2em; color: var(--ink-soft); }
+.poem-note { color: var(--jade); }
+#pok { writing-mode: horizontal-tb; align-self: flex-end; }
+button.ghost { background: rgba(255, 255, 255, .7); }
 
 /* sliders */
 .q { display: flex; flex-direction: column; gap: 6px; }
@@ -75,5 +85,5 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--amber); out
   #instruction { font-size: 15px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .poem, .poem-src { transition: none; }
+  #poem-box { transition: none; }
 }

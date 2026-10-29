@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { parseCSV } from './csv.js';
+import { createGarden } from './garden.js';
 
 /* =====================================================================
    STATE AND EVENT LOG
@@ -23,174 +24,11 @@ async function loadData() {
 }
 
 /* =====================================================================
-   SCENE: a small garden built from simple shapes (a digital stand-in;
-   the research version will use real panoramas and field recordings).
+   SCENE (built in garden.js)
    ===================================================================== */
 const canvas = $('#scene');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-renderer.outputColorSpace = THREE.SRGBColorSpace;
-
-const SKY = 0xdfe9e0;
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(SKY);
-scene.fog = new THREE.Fog(SKY, 14, 46);
-
-const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 120);
-camera.position.set(0, 1.35, 3.6);
-const look = { yaw: 0, pitch: -0.36 };
-const LIMIT = { yawMin: -1.25, yawMax: 1.25, pitchMin: -0.95, pitchMax: 0.2 };
-const applyLook = () => camera.rotation.set(look.pitch, look.yaw, 0, 'YXZ');
-applyLook();
-
-scene.add(new THREE.HemisphereLight(0xf4f1e6, 0x5d7a52, 1.0));
-const sun = new THREE.DirectionalLight(0xfff1dc, 1.6);
-sun.position.set(5, 9, 4);
-sun.castShadow = true;
-sun.shadow.mapSize.set(1024, 1024);
-Object.assign(sun.shadow.camera, { left: -8, right: 8, top: 8, bottom: -8, near: 1, far: 30 });
-scene.add(sun);
-
-const mat = c => new THREE.MeshLambertMaterial({ color: c });
-const shadow = (m, cast = true, receive = true) => { m.castShadow = cast; m.receiveShadow = receive; return m; };
-function add(geo, color, x, y, z, parent = scene) {
-  const m = shadow(new THREE.Mesh(geo, typeof color === 'number' ? mat(color) : color));
-  m.position.set(x, y, z);
-  parent.add(m);
-  return m;
-}
-
-// ground, path and pond
-const ground = add(new THREE.PlaneGeometry(80, 80), 0x93b47c, 0, 0, 0);
-ground.rotation.x = -Math.PI / 2;
-ground.castShadow = false;
-for (let i = 0; i < 7; i++) {
-  const s = add(new THREE.CylinderGeometry(0.32, 0.36, 0.05, 9), 0xb9b4a6, Math.sin(i * 1.3) * 0.25 - 0.2, 0.025, 2.6 - i * 0.75);
-  s.rotation.y = i;
-}
-const pond = add(new THREE.CircleGeometry(1.7, 40), new THREE.MeshStandardMaterial({ color: 0x7ea7b0, roughness: 0.15, metalness: 0.1 }), -3.4, 0.015, -1.8);
-pond.rotation.x = -Math.PI / 2;
-pond.castShadow = false;
-for (let i = 0; i < 16; i++) {
-  const a = (i / 16) * Math.PI * 2;
-  add(new THREE.DodecahedronGeometry(0.18 + (i % 3) * 0.04), 0x9d998c, -3.4 + Math.cos(a) * 1.8, 0.08, -1.8 + Math.sin(a) * 1.8);
-}
-
-// trees that sway gently (soft fascination)
-const canopies = [];
-function tree(x, z, s = 1) {
-  const g = new THREE.Group();
-  add(new THREE.CylinderGeometry(0.09 * s, 0.13 * s, 1.6 * s, 7), 0x6e5641, 0, 0.8 * s, 0, g);
-  const crown = new THREE.Group();
-  crown.position.y = 1.7 * s;
-  [[0, 0, 0, 0.75, 0x5f8a55], [0.45, -0.15, 0.1, 0.55, 0x6f9a60], [-0.4, -0.1, -0.15, 0.6, 0x557d4c], [0.05, 0.45, 0, 0.5, 0x79a466]]
-    .forEach(([cx, cy, cz, r, c]) => add(new THREE.IcosahedronGeometry(r * s, 1), new THREE.MeshLambertMaterial({ color: c, flatShading: true }), cx * s, cy * s, cz * s, crown));
-  g.add(crown);
-  g.position.set(x, 0, z);
-  scene.add(g);
-  canopies.push({ crown, phase: Math.random() * 6 });
-}
-tree(-2.8, -4.2, 1.3); tree(-5.6, 0.2, 1.1); tree(3.6, -5.5, 1.4); tree(-0.9, -7, 1.6); tree(6.5, -1.5, 1.2); tree(-7, -5, 1.5);
-
-// distant mountain (南山)
-const MOUNTAIN = new THREE.Vector3(9, 0, -34);
-[[0, 0, 13, 9, 0x8fa6a8], [-9, -2, 10, 6.5, 0xa3b6b5], [8, -4, 9, 5.5, 0xa8babb]].forEach(([dx, dz, r, h, c]) => {
-  const m = add(new THREE.ConeGeometry(r, h, 7), new THREE.MeshLambertMaterial({ color: c, flatShading: true }), MOUNTAIN.x + dx, h / 2 - 0.2, MOUNTAIN.z + dz);
-  m.castShadow = false;
-});
-
-// bamboo fence on the east side (東籬) with chrysanthemums
-const fence = new THREE.Group();
-fence.position.set(2.15, 0, 0.4);
-fence.rotation.y = -0.35;
-scene.add(fence);
-for (let i = 0; i < 9; i++) add(new THREE.CylinderGeometry(0.03, 0.035, 1.05, 6), 0xa58b5c, 0, 0.52, -i * 0.42, fence);
-[0.35, 0.8].forEach(y => {
-  const r = add(new THREE.CylinderGeometry(0.02, 0.02, 3.5, 6), 0xb39a68, 0, y, -1.68, fence);
-  r.rotation.x = Math.PI / 2;
-});
-const flowers = [];
-function chrysanthemum(z, petalColor) {
-  const f = new THREE.Group();
-  add(new THREE.CylinderGeometry(0.012, 0.016, 0.62, 5), 0x4e7a3e, 0, 0.31, 0, f);
-  const leaf = add(new THREE.SphereGeometry(0.05, 6, 4), 0x5a8a45, 0.05, 0.28, 0, f);
-  leaf.scale.set(1.4, 0.25, 0.7);
-  const head = new THREE.Group();
-  head.position.y = 0.64;
-  add(new THREE.SphereGeometry(0.045, 10, 8), 0xc9862b, 0, 0.01, 0, head);
-  for (let i = 0; i < 14; i++) {
-    const p = add(new THREE.SphereGeometry(0.05, 6, 4), petalColor, 0, 0, 0, head);
-    const a = (i / 14) * Math.PI * 2;
-    p.scale.set(1.25, 0.22, 0.42);
-    p.position.set(Math.cos(a) * 0.075, 0, Math.sin(a) * 0.075);
-    p.rotation.y = -a;
-    p.rotation.z = 0.25;
-  }
-  head.rotation.x = 0.5;
-  f.add(head);
-  f.position.set(-0.32, 0, z);
-  fence.add(f);
-  flowers.push({ g: f, phase: Math.random() * 6 });
-  return f;
-}
-[0.1, -0.35, -0.8, -1.2, -1.65, -2.1, -2.55, -3.0].forEach((z, i) => chrysanthemum(z, [0xf2c94c, 0xf5d77a, 0xeeb84a, 0xf7e3a1][i % 4]));
-
-// raised planting bed in front of the viewer
-const BED = new THREE.Vector3(0, 0.18, 1.55);
-add(new THREE.BoxGeometry(1.3, 0.24, 0.85), 0x5c3f2b, BED.x, 0.12, BED.z);
-[[0, 0.45], [0, -0.45]].forEach(([dx, dz]) => add(new THREE.BoxGeometry(1.42, 0.3, 0.06), 0x8a6b49, BED.x + dx, 0.15, BED.z + dz));
-[[0.68, 0], [-0.68, 0]].forEach(([dx, dz]) => add(new THREE.BoxGeometry(0.06, 0.3, 0.85), 0x8a6b49, BED.x + dx, 0.15, BED.z + dz));
-
-// stands for the seedling tray and the watering can
-const standL = new THREE.Vector3(-1.15, 0, 1.95), standR = new THREE.Vector3(1.15, 0, 1.95);
-[standL, standR].forEach(p => add(new THREE.BoxGeometry(0.5, 0.42, 0.42), 0x9a7b55, p.x, 0.21, p.z));
-add(new THREE.BoxGeometry(0.42, 0.05, 0.32), 0x6b8a6a, standL.x, 0.445, standL.z);
-
-// seedling
-const seedling = new THREE.Group();
-add(new THREE.CylinderGeometry(0.07, 0.055, 0.1, 10), 0x7a5236, 0, 0.05, 0, seedling);
-add(new THREE.CylinderGeometry(0.008, 0.01, 0.16, 5), 0x5d8f45, 0, 0.17, 0, seedling);
-const leaves = [];
-[[-1, 0.2], [1, 0.22], [-1, 0.13], [1, 0.12]].forEach(([side, y], i) => {
-  const l = add(new THREE.SphereGeometry(0.05, 8, 6), 0x6fae55, side * 0.045, y, 0, seedling);
-  l.scale.set(1.2, 0.28, 0.6);
-  l.rotation.z = side * 0.5;
-  if (i > 1) { l.visible = false; leaves.push(l); }
-});
-seedling.position.set(standL.x, 0.47, standL.z);
-scene.add(seedling);
-
-// watering can
-const can = new THREE.Group();
-const metal = new THREE.MeshStandardMaterial({ color: 0x5f8a8b, roughness: 0.5, metalness: 0.4 });
-add(new THREE.CylinderGeometry(0.11, 0.12, 0.2, 16), metal, 0, 0.1, 0, can);
-const spout = add(new THREE.CylinderGeometry(0.012, 0.02, 0.26, 8), metal, 0.15, 0.15, 0, can);
-spout.rotation.z = -0.95;
-const handle = add(new THREE.TorusGeometry(0.07, 0.012, 6, 16, Math.PI), metal, -0.02, 0.2, 0, can);
-handle.rotation.y = Math.PI / 2;
-can.position.set(standR.x, 0.42, standR.z);
-can.rotation.y = Math.PI;
-scene.add(can);
-const SPOUT_TIP = new THREE.Vector3(0.26, 0.24, 0);
-
-// water droplets
-const DROPS = 140;
-const dropGeo = new THREE.BufferGeometry();
-dropGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(DROPS * 3), 3));
-const drops = new THREE.Points(dropGeo, new THREE.PointsMaterial({ color: 0xa9d4e6, size: 0.02, transparent: true, opacity: 0.85 }));
-drops.visible = false;
-scene.add(drops);
-const dropVel = new Float32Array(DROPS * 3);
-let watering = false;
-
-// pulsing ring that marks what to touch next
-const marker = new THREE.Mesh(new THREE.RingGeometry(0.16, 0.2, 40), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthTest: false }));
-marker.rotation.x = -Math.PI / 2;
-marker.renderOrder = 10;
-marker.visible = false;
-scene.add(marker);
+const G = createGarden(canvas);
+const { scene, camera, look, LIMIT, applyLook, BED, standL, standR, seedling, leaves, can, flowers, MOUNTAIN, marker, drops } = G;
 
 /* =====================================================================
    TWEENS AND LOOP
@@ -211,41 +49,11 @@ function frame() {
     w.fn(ease(k));
     if (k >= 1) { tweens.splice(i, 1); w.done(); }
   }
-  canopies.forEach(c => { c.crown.rotation.z = Math.sin(t * 0.6 + c.phase) * 0.025; c.crown.rotation.x = Math.cos(t * 0.45 + c.phase) * 0.02; });
-  flowers.forEach(f => { if (!f.picked) f.g.rotation.x = Math.sin(t * 1.1 + f.phase) * 0.05; });
-  pond.material.color.setHSL(0.53, 0.22, 0.58 + Math.sin(t * 0.8) * 0.015);
-  if (marker.visible) { const s = 1 + Math.sin(t * 3) * 0.12; marker.scale.set(s, s, s); marker.material.opacity = 0.55 + Math.sin(t * 3) * 0.25; }
-  if (drops.visible) updateDrops(dt);
-  renderer.render(scene, camera);
+  G.update(dt, t);
   requestAnimationFrame(frame);
 }
-
-function updateDrops(dt) {
-  const pos = dropGeo.attributes.position.array;
-  const tip = can.localToWorld(SPOUT_TIP.clone());
-  for (let i = 0; i < DROPS; i++) {
-    const j = i * 3;
-    dropVel[j + 1] -= 9.8 * dt;
-    pos[j] += dropVel[j] * dt; pos[j + 1] += dropVel[j + 1] * dt; pos[j + 2] += dropVel[j + 2] * dt;
-    if (pos[j + 1] < BED.y + 0.05) {
-      if (watering) {
-        pos[j] = tip.x; pos[j + 1] = tip.y; pos[j + 2] = tip.z;
-        dropVel[j] = 0.5 + Math.random() * 0.3; dropVel[j + 1] = Math.random() * 0.3; dropVel[j + 2] = (Math.random() - 0.5) * 0.25;
-      } else pos[j + 1] = -10;
-    }
-  }
-  dropGeo.attributes.position.needsUpdate = true;
-}
-
-function onResize() {
-  const w = window.innerWidth, h = window.innerHeight;
-  renderer.setSize(w, h, false);
-  camera.aspect = w / h;
-  camera.fov = w / h < 0.8 ? 68 : 55;
-  camera.updateProjectionMatrix();
-}
-window.addEventListener('resize', onResize);
-onResize();
+window.addEventListener('resize', G.resize);
+G.resize();
 requestAnimationFrame(frame);
 
 /* =====================================================================
@@ -414,12 +222,20 @@ function askSliders(questions, heading = '') {
 
 function showPoem(a) {
   return new Promise(resolve => {
-    card.innerHTML = `<p class="poem" id="poem">${esc(a.poem)}</p><p class="poem-src" id="poem-src">${esc(a.poem_source)}${a.poem_note ? '・' + esc(a.poem_note) : ''}</p><button id="pok" type="button" hidden>繼續</button>`;
-    panel.hidden = false;
+    const box = $('#poem-box');
+    const lines = a.poem.split(/[，,]/).map(s => s.replace(/[。.]$/, '')).filter(Boolean);
+    box.innerHTML = `<div class="poem-lines">${lines.map(l => `<span>${esc(l)}</span>`).join('')}</div>
+      <p class="poem-src">${esc(a.poem_source)}</p>
+      ${a.poem_note ? `<p class="poem-note">${esc(a.poem_note)}</p>` : ''}
+      <button id="pok" type="button" class="ghost" hidden>繼續</button>`;
+    box.hidden = false;
     log('poem_shown', a.id);
-    requestAnimationFrame(() => requestAnimationFrame(() => { $('#poem').classList.add('on'); $('#poem-src').classList.add('on'); }));
-    setTimeout(() => { const b = $('#pok'); b.hidden = false; b.focus(); }, 3200);
-    $('#pok').addEventListener('click', () => { panel.hidden = true; resolve(); });
+    requestAnimationFrame(() => requestAnimationFrame(() => box.classList.add('on')));
+    setTimeout(() => { const b = $('#pok'); b.hidden = false; b.focus(); }, 3400);
+    $('#pok').addEventListener('click', () => {
+      box.classList.remove('on');
+      setTimeout(() => { box.hidden = true; resolve(); }, 600);
+    });
   });
 }
 
@@ -448,14 +264,14 @@ const BEHAVIOURS = {
     const r0 = can.rotation.y;
     await tw(1.4, k => { can.position.lerpVectors(from, over, k); can.rotation.y = lerp(r0, 0, k); });
     await tw(0.6, k => { can.rotation.z = lerp(0, -0.55, k); });
-    watering = true; drops.visible = true; waterSound(true);
+    G.water.on = true; drops.visible = true; waterSound(true);
     leaves.forEach(l => { l.visible = true; l.scale.set(0.01, 0.01, 0.01); });
     await tw(3.2, k => {
       const s = 1 + k * 1.3;
       seedling.scale.set(s, s, s);
       leaves.forEach(l => l.scale.set(1.2 * k, 0.28 * k, 0.6 * k));
     });
-    watering = false; waterSound(false);
+    G.water.on = false; waterSound(false);
     await tw(0.6, k => { can.rotation.z = lerp(-0.55, 0, k); });
     await wait(400);
     drops.visible = false;
@@ -469,7 +285,7 @@ const BEHAVIOURS = {
     const f = flowers.find(x => isInside(obj, x.g));
     f.picked = true;
     log('flower_picked', a.id, flowers.indexOf(f));
-    const head = f.g.children[f.g.children.length - 1];
+    const head = f.head;
     const start = head.getWorldPosition(new THREE.Vector3());
     scene.attach(head);
     const end = camera.localToWorld(new THREE.Vector3(0.18, -0.25, -0.9));
