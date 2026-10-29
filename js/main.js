@@ -508,7 +508,7 @@ function showProgress(it, p) {
   clearTimeout(doneTimer);
   $('#progress-label').textContent = it.label.replace('按住', '');
   $('#progress-fill').style.width = `${Math.round(p * 100)}%`;
-  $('#progress-pct').textContent = holdSt.active ? `${Math.round(p * 100)}%` : `${Math.round(p * 100)}%　放開了，再按住可以接著做`;
+  $('#progress-pct').textContent = holdSt.active ? `${Math.round(p * 100)}%` : `${Math.round(p * 100)}%　${it.decay === false ? '放開了，再按住可以接著做' : '放開了，會慢慢縮回去'}`;
 }
 function flashDone(it) {
   arc.visible = false;
