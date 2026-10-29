@@ -27,7 +27,10 @@ export function grassDensity(x, z) {
   if (Math.hypot(x - L.pond.x, z - L.pond.z) < L.pond.r + 0.25) return 0;
   if (Math.abs(x - L.hut.x) < L.hut.w / 2 + 0.6 && Math.abs(z - L.hut.z) < L.hut.d / 2 + 0.6) return 0;
   if (Math.abs(z - fence.z1) < 0.18 && Math.abs(x) < 10.2) return 0;
-  if (inRect(x, z, L.beans, 0)) return 0.22;  // 草盛豆苗稀: weeds between the rows
+  if (inRect(x, z, L.beans, 0)) {
+    if (Math.abs(z - (L.beans.z + 0.375)) < 0.42) return 0;   // the row to be sown was cleared at dawn
+    return 0.18;  // 草盛豆苗稀: weeds between the other rows
+  }
   const patch = fbm(x * 0.25 + 7, z * 0.25);
   return 0.55 + patch * 0.6;
 }

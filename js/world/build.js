@@ -338,22 +338,29 @@ function beanField(scene) {
   const rowY = 0.13;
   // the row where the player sows
   const sowZ = z + ROWS[2];
-  const holes = [x - 1.75, x - 1.3, x - 0.85].map(hx => new THREE.Vector3(hx, rowY, sowZ));
-  const holeMat = std(0x241810, { roughness: 1 });
-  holes.forEach(h => { const dsk = mesh(new THREE.CircleGeometry(0.06, 16), holeMat, h.x, rowY + 0.004, h.z, scene, { cast: false }); dsk.rotation.x = -Math.PI / 2; });
-  const holeHits = holes.map(h => { const hm = mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.4, 10), new THREE.MeshBasicMaterial({ visible: false }), h.x, rowY, h.z, scene, { cast: false, receive: false }); hm.userData.hit = true; return hm; });
+  const holes = [x - 1.6, x - 1.05, x - 0.5].map(hx => new THREE.Vector3(hx, rowY, sowZ));
+  const holeMat = std(0x1f150d, { roughness: 1 });
   const beanMat = std(0xc89a62, { roughness: 0.5 });
-  const beans = holes.map(() => { const b = mesh(new THREE.SphereGeometry(0.022, 10, 8), beanMat, 0, -5, 0, scene); b.scale.set(1.3, 0.9, 0.9); return b; });
-  const sproutLeaf = std(0x7cba58, { roughness: 0.6, side: THREE.DoubleSide });
-  const sprouts = holes.map(h => {
-    const s = new THREE.Group();
-    s.position.copy(h);
-    cyl(0.007, 0.01, 0.16, std(0x6c9a48), 0, 0.08, 0, s, 5);
-    [-1, 1].forEach(side => { const l = mesh(new THREE.SphereGeometry(0.05, 10, 6), sproutLeaf, side * 0.045, 0.16, 0, s); l.scale.set(1.2, 0.2, 0.62); l.rotation.z = side * 0.45; });
-    s.scale.setScalar(0.001);
-    s.visible = false;
-    scene.add(s);
-    return s;
+  const wetMat = new THREE.MeshStandardMaterial({ color: 0x1a110a, roughness: 0.45, transparent: true, opacity: 0, depthWrite: false });
+  const spots = holes.map(h => {
+    // a twig marks where each hole should go
+    const stick = cyl(0.006, 0.008, 0.22, darkWood, h.x + 0.1, rowY + 0.09, h.z - 0.08, scene, 4);
+    stick.rotation.z = 0.15;
+    const hole = mesh(new THREE.CircleGeometry(0.075, 18), holeMat, h.x, rowY + 0.005, h.z, scene, { cast: false });
+    hole.rotation.x = -Math.PI / 2;
+    hole.scale.setScalar(0.001);
+    // the soil dug out piles up beside the hole, and goes back over the beans
+    const pile = mesh(new THREE.SphereGeometry(0.08, 12, 8, 0, TAU, 0, Math.PI / 2), soilMat, h.x + 0.13, rowY - 0.005, h.z + 0.02, scene, { receive: true });
+    pile.scale.set(1.1, 0.001, 0.9);
+    const mound = mesh(new THREE.SphereGeometry(0.085, 12, 8, 0, TAU, 0, Math.PI / 2), soilMat, h.x, rowY - 0.01, h.z, scene);
+    mound.scale.set(1, 0.001, 1);
+    mound.visible = false;
+    const wet = mesh(new THREE.CircleGeometry(0.17, 20), wetMat.clone(), h.x, rowY + 0.012, h.z, scene, { cast: false });
+    wet.rotation.x = -Math.PI / 2;
+    const seeds = [0, 1, 2].map(() => { const b = mesh(new THREE.SphereGeometry(0.016, 10, 8), beanMat, 0, -5, 0, scene); b.scale.set(1.3, 0.9, 0.9); return b; });
+    const hit = mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.4, 10), new THREE.MeshBasicMaterial({ visible: false }), h.x, rowY, h.z, scene, { cast: false, receive: false });
+    hit.userData.hit = true;
+    return { pos: h, stick, hole, pile, mound, wet, seeds, hit };
   });
   // the few bean plants already growing (豆苗稀)
   const plantLeaf = std(0x5f8f43, { roughness: 0.7, side: THREE.DoubleSide });
@@ -375,7 +382,7 @@ function beanField(scene) {
   });
   const fieldHit = mesh(new THREE.BoxGeometry(w, 0.3, d), new THREE.MeshBasicMaterial({ visible: false }), x, 0.12, z, scene, { cast: false, receive: false });
   fieldHit.userData.hit = true;
-  return { holes, holeHits, beans, sprouts, fieldHit, rowY };
+  return { holes, spots, fieldHit, rowY };
 }
 
 /* ================================================================ tools */
@@ -419,18 +426,19 @@ function tools(scene) {
   ladle.rotation.y = 0.6;
   scene.add(ladle);
 
-  // the hoe, leaning on a short post at the corner of the field
+  // a short post at the far corner of the field, where the hoe is left after work
   const [hx, hz] = L.hoe;
-  cyl(0.06, 0.07, 1.0, darkWood, hx + 0.12, 0.5, hz + 0.05, scene, 8);
+  const hoePost = cyl(0.06, 0.07, 1.0, darkWood, hx + 0.12, 0.5, hz + 0.05, scene, 8);
   circleColliders.push([hx + 0.12, hz + 0.05, 0.3]);
   const hoe = new THREE.Group();
   cyl(0.017, 0.021, 1.45, std(0xa1825a, { roughness: 0.8 }), 0, 0.72, 0, hoe, 8);
   const blade = box(0.2, 0.16, 0.014, std(0x5c5852, { roughness: 0.45, metalness: 0.65 }), 0, 1.42, 0.1, hoe, 1);
   blade.rotation.x = 1.2;
-  hoe.position.set(hx, 0, hz);
-  hoe.rotation.set(0.0, 0.4, -0.22);
+  // in the morning it leans against the stump, beside the seed pouch
+  hoe.position.set(px + 0.3, 0, pz - 0.05);
+  hoe.rotation.set(0.0, 0.4, 0.2);
   scene.add(hoe);
-  return { pouch, bucket, ladle, hoe };
+  return { pouch, bucket, ladle, hoe, hoePost: new THREE.Vector3(hx, 0, hz) };
 }
 
 /* ================================================================ pond */

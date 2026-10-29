@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import { parseCSV } from './csv.js?v=16';
-import { createWorld } from './world/index.js?v=18';
+import { createWorld } from './world/index.js?v=21';
 import { createControls } from './controls.js?v=18';
 import { audioInit, setScape, oneShot, waterSound, toggleSound } from './audio.js?v=16';
 import { L, PATHS, APPROACH, EYE } from './world/layout.js?v=18';
-import { pathDist } from './world/grass.js?v=18';
+import { pathDist } from './world/grass.js?v=21';
 
 /* =====================================================================
    STATE AND EVENT LOG
@@ -360,7 +360,12 @@ const holdSt = { item: null, p: 0, active: false, t0: 0, src: '' };
 const actEl = $('#act');
 function startHold(item, src) {
   if (!item.hold) { use(item); return; }
-  if (holdSt.item && holdSt.item !== item) return;
+  if (holdSt.item && holdSt.item !== item) {
+    if (holdSt.active) return;
+    // switching to another thing: remember how far the first one got
+    holdSt.item._p = holdSt.p;
+    holdSt.p = item._p || 0;
+  } else if (!holdSt.item) holdSt.p = item._p || 0;
   Object.assign(holdSt, { item, active: true, t0: now(), src });
   controls.st.lookLock = true;
   actEl.classList.add('holding');
@@ -707,57 +712,125 @@ const BEHAVIOURS = {
     await wait(1500);
   },
 
-  /* 午：種豆南山下 */
+  /* 午：種豆南山下 — dig, drop three beans, cover with soil, put the hoe away, water */
   async sow(a) {
     walkMode(true);
-    // 1. the seed pouch
-    setTarget(V(L.pouch[0], 0.6, L.pouch[1]), 'pouch');
+    const S = parts.spots, rowC = S[1].pos.clone();
+    // the hoe rests on the shoulder, and swings down while digging or covering
+    const SHOULDER_P = V(0.42, -0.95, -0.3), SHOULDER_Q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.35, 0.15, -0.55));
+    const pose = { mode: 'none', at: rowC, strikes: 0 }, tmpQ = new THREE.Quaternion();
+    const hoeHook = (dt, t) => {
+      if (pose.mode === 'chop') {
+        const ph = t * 7.5, sw = 0.5 - 0.5 * Math.cos(ph);
+        parts.hoe.position.lerp(V(0.16, -0.5, -0.35), Math.min(1, dt * 8));
+        tmpQ.setFromEuler(new THREE.Euler(lerp(-1.0, -2.05, sw), 0.1, -0.15));
+        parts.hoe.quaternion.slerp(tmpQ, Math.min(1, dt * 14));
+        const n = Math.floor((ph + Math.PI) / (Math.PI * 2));
+        if (n !== pose.strikes) { pose.strikes = n; oneShot('stepDirt', 1.3); burst(pose.at); }
+      } else if (pose.mode === 'shoulder') {
+        parts.hoe.position.lerp(SHOULDER_P, Math.min(1, dt * 6));
+        parts.hoe.quaternion.slerp(SHOULDER_Q, Math.min(1, dt * 6));
+      }
+    };
+    const chop = spot => on => { pose.mode = on ? 'chop' : 'shoulder'; pose.at = spot.pos; };
+    const count = (txt, n) => `${txt}（${n} / ${S.length}）`;
+
+    // 1. the hoe
+    setTarget(parts.hoe.position.clone().setY(0.8), 'pouch');
     setTask(a.name, a.task);
-    await offer([{ id: 'pouch', obj: parts.pouch, pos: V(L.pouch[0], 0, L.pouch[1]), reach: 2.2, label: '拿起' }]);
+    await offer([{ id: 'hoe', obj: parts.hoe, pos: parts.hoe.position.clone(), reach: 2.2, label: '拿起鋤頭' }]);
+    oneShot('pick');
+    await hold(parts.hoe, SHOULDER_P, [-0.35, 0.15, -0.55], 0.9);
+    pose.mode = 'shoulder';
+    hooks.add(hoeHook);
+    setHeld('鋤頭');
+
+    // 2. dig three holes where the twigs are
+    setTarget(rowC, 'beans');
+    for (let n = 0; n < S.length; n++) {
+      setTask(a.name, count(a.task_2, n));
+      const item = await offer(S.filter(sp => !sp.dug).map(sp => ({
+        id: 'dig', tag: S.indexOf(sp), obj: sp.hit, pos: sp.pos, reach: 2.3, label: '按住挖洞',
+        hold: 1.4, decay: false, holdHint: '按住，用鋤頭一下一下把土挖開',
+        onHold: chop(sp),
+        onProgress: p => { sp.hole.scale.setScalar(Math.max(0.001, p)); sp.pile.scale.y = Math.max(0.001, p * 0.9); sp.stick.visible = p < 0.5; },
+      })));
+      S[item.tag].dug = true;
+      pose.mode = 'shoulder';
+      if (n === 0) beacon.visible = false;
+    }
+
+    // 3. the seed pouch, 4. three beans in each hole
+    setTarget(V(L.pouch[0], 0.6, L.pouch[1]), 'pouch');
+    setTask(a.name, a.task_3);
+    await offer([{ id: 'pouch', obj: parts.pouch, pos: V(L.pouch[0], 0, L.pouch[1]), reach: 2.2, label: '拿起種子袋' }]);
     oneShot('pick');
     const pouchHome = parts.pouch.position.clone();
-    await hold(parts.pouch, V(0.36, -0.44, -0.72), [0.3, 0, 0.2]);
-    setHeld('種子袋');
-    // 2. sow three beans
-    const center = parts.holes[1].clone();
-    setTarget(center, 'beans');
-    let sown = 0;
-    while (sown < parts.holes.length) {
-      setTask(a.name, `${a.task_2}（${sown} / ${parts.holes.length}）`);
-      const left = parts.holes.map((h, i) => i).filter(i => !parts.holeHits[i].userData.done);
-      const item = await offer(left.map(i => ({ id: 'hole', tag: i, obj: parts.holeHits[i], pos: parts.holes[i], reach: 2.3, label: '播種' })));
-      const i = item.tag;
-      parts.holeHits[i].userData.done = true;
-      sown++;
-      if (sown === 1) beacon.visible = false;
-      const from = parts.pouch.getWorldPosition(new THREE.Vector3()), to = parts.holes[i].clone().add(V(0, 0.015, 0));
-      const bean = parts.beans[i];
-      oneShot('seed');
-      await tw(0.6, k => { bean.position.set(lerp(from.x, to.x, k), lerp(from.y, to.y, k * k) + Math.sin(k * Math.PI) * 0.1, lerp(from.z, to.z, k)); }, k => k);
+    await hold(parts.pouch, V(-0.36, -0.44, -0.72), [0.3, 0, -0.2]);
+    setHeld('鋤頭、種子袋');
+    setTarget(rowC, 'beans');
+    beacon.visible = false;
+    for (let n = 0; n < S.length; n++) {
+      setTask(a.name, count(a.task_4, n));
+      const item = await offer(S.filter(sp => !sp.sown).map(sp => ({ id: 'sow', tag: S.indexOf(sp), obj: sp.hit, pos: sp.pos, reach: 2.3, label: '放入豆子' })));
+      const sp = S[item.tag];
+      sp.sown = true;
+      const from = parts.pouch.getWorldPosition(new THREE.Vector3());
+      for (const [k, b] of sp.seeds.entries()) {
+        const to = sp.pos.clone().add(V(Math.cos(k * 2.1) * 0.03, -0.004, Math.sin(k * 2.1) * 0.03));
+        oneShot('seed');
+        await tw(0.4, q => { b.position.set(lerp(from.x, to.x, q), lerp(from.y, to.y, q * q) + Math.sin(q * Math.PI) * 0.06, lerp(from.z, to.z, q)); }, q => q);
+      }
     }
     await putDown(parts.pouch, pouchHome, [0, 0, 0]);
+    setHeld('鋤頭');
+
+    // 5. cover the beans with the soil that was dug out
+    for (let n = 0; n < S.length; n++) {
+      setTask(a.name, count(a.task_5, n));
+      const item = await offer(S.filter(sp => !sp.covered).map(sp => ({
+        id: 'cover', tag: S.indexOf(sp), obj: sp.hit, pos: sp.pos, reach: 2.3, label: '按住蓋土',
+        hold: 1.1, decay: false, holdHint: '按住，用鋤頭把旁邊的土撥回洞裡',
+        onHold: chop(sp),
+        onProgress: p => {
+          sp.pile.scale.y = Math.max(0.001, (1 - p) * 0.9);
+          sp.hole.scale.setScalar(Math.max(0.001, 1 - p));
+          sp.mound.visible = true;
+          sp.mound.scale.y = Math.max(0.001, p * 0.4);
+          sp.seeds.forEach(b => { b.visible = p < 0.6; });
+        },
+      })));
+      S[item.tag].covered = true;
+      pose.mode = 'shoulder';
+    }
+
+    // 6. lean the hoe on the post at the corner of the field
+    setTarget(parts.hoePost.clone().setY(0.8), 'hoe');
+    setTask(a.name, a.task_6);
+    await offer([{ id: 'hoe_away', pos: parts.hoePost, reach: 2.0, label: '靠好鋤頭' }]);
+    hooks.delete(hoeHook);
+    await putDown(parts.hoe, V(L.hoe[0], 0, L.hoe[1]), [0, 0.4, -0.22], 0.8);
     setHeld('');
-    // 3. water them
+
+    // 7. a ladle of water over the three mounds
     setTarget(V(L.bucket[0], 0.4, L.bucket[1]), 'bucket');
-    setTask(a.name, a.task_3);
+    setTask(a.name, a.task_7);
     await offer([{ id: 'bucket', obj: parts.bucket, pos: V(L.bucket[0], 0, L.bucket[1]), reach: 2.2, label: '舀水' }]);
     const ladleHome = parts.ladle.position.clone(), ladleRot = parts.ladle.rotation.clone();
     await hold(parts.ladle, V(0.28, -0.34, -0.6), [0, 0.3, 0]);
     setHeld('一瓢水');
-    setTarget(center, 'beans');
-    setTask(a.name, '把水澆在剛種下的豆子上');
-    setTask(a.name, '按住，慢慢把水澆在剛種下的豆子上');
-    parts.sprouts.forEach(s => { s.visible = true; });
+    setTarget(rowC, 'beans');
+    setTask(a.name, '按住，把水慢慢澆在三個土堆上');
     let tilt = 0;
     const tiltHook = dt => { tilt += ((pour.on ? 1.1 : 0) - tilt) * Math.min(1, dt * 6); parts.ladle.rotation.z = tilt; if (pour.on) parts.ladle.getWorldPosition(pour.from); };
     hooks.add(tiltHook);
     await offer([{
-      id: 'water', obj: [parts.fieldHit, ...parts.holeHits], pos: center, reach: 2.8, label: '按住澆水',
+      id: 'water', obj: [parts.fieldHit, ...S.map(sp => sp.hit)], pos: rowC, reach: 2.8, label: '按住澆水',
       hold: 3.6, decay: false, holdHint: '按住田裡，或按住右下角的按鈕',
       onHold: on => { pour.on = on; drops.visible = true; waterSound(on); if (on) beacon.visible = false; },
       onProgress: p => {
-        pour.to.set(lerp(parts.holes[0].x, parts.holes[2].x, p), center.y, center.z);
-        parts.sprouts.forEach((s, i) => s.scale.setScalar(Math.max(0.001, Math.min(1, p * 1.5 - i * 0.22))));
+        pour.to.set(lerp(S[0].pos.x, S[2].pos.x, p), rowC.y, rowC.z);
+        S.forEach((sp, i) => { sp.wet.material.opacity = Math.min(1, Math.max(0, p * 3 - i)) * 0.7; });
       },
     }]);
     pour.on = false; waterSound(false);
@@ -768,7 +841,8 @@ const BEHAVIOURS = {
     await putDown(parts.ladle, ladleHome, [ladleRot.x, ladleRot.y, ladleRot.z]);
     setHeld('');
     setTarget(null);
-    await wait(900);
+    setTask(a.name, '豆子種好了。要等上幾天，才會冒出芽來。');
+    await wait(2200);
   },
 
   /* 暮：帶月荷鋤歸，道狹草木長 */
