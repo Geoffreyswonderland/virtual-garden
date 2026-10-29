@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&family=Noto+Serif+TC:wght@600;900&display=swap">
-<link rel="stylesheet" href="css/style.css?v=18">
+<link rel="stylesheet" href="css/style.css?v=23">
 <script type="importmap">
 { "imports": {
   "three": "./lib/three/three.module.js",
@@ -34,6 +34,7 @@
     <p class="task-head"><span class="diamond"></span>任務</p>
     <h3 id="task-title"></h3>
     <p id="task-text"></p>
+    <ol id="task-steps" class="task-steps" hidden></ol>
     <button id="guide-me" type="button" class="link-btn">帶我過去</button>
   </section>
 
@@ -48,6 +49,7 @@
   <button id="act" type="button" hidden></button>
   <div id="edge" hidden><span class="arrow"></span><span id="edge-dist"></span></div>
   <p id="toast" role="status"></p>
+  <section id="coach" class="panel" role="note" hidden></section>
 </div>
 
 <section id="dlg" class="panel" hidden>
@@ -112,6 +114,6 @@
   </div>
 </section>
 
-<script type="module" src="js/main.js?v=22"></script>
+<script type="module" src="js/main.js?v=23"></script>
 </body>
 </html>

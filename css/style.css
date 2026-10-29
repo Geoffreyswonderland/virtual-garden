@@ -87,6 +87,19 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--gold); outl
 #toast { position: absolute; left: 50%; top: 32%; transform: translate(-50%, 0); margin: 0; padding: 8px 18px; background: rgba(18, 23, 21, 0.85); border: 1px solid var(--line); font-size: 16px; opacity: 0; transition: opacity 0.4s; pointer-events: none; white-space: nowrap; }
 #toast.on { opacity: 1; }
 
+/* step chips and the how-to card */
+.task-steps { list-style: none; margin: 4px 0 8px; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 6px; font-size: 12.5px; color: var(--paper-soft); }
+.task-steps li { display: flex; align-items: center; gap: 4px; padding: 1px 7px 1px 2px; border: 1px solid rgba(210, 183, 126, 0.25); border-radius: 999px; }
+.task-steps li b { width: 17px; height: 17px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; background: rgba(255, 255, 255, 0.08); }
+.task-steps li.done { opacity: 0.55; text-decoration: line-through; }
+.task-steps li.now { color: var(--paper); border-color: var(--gold); background: rgba(210, 183, 126, 0.16); }
+.task-steps li.now b { background: var(--gold); color: #1b1f1c; }
+#coach { position: absolute; left: 50%; bottom: calc(var(--safe-b) + 24px); transform: translateX(-50%); width: min(460px, calc(100% - 300px)); min-width: 280px; padding: 16px 20px 14px; animation: rise 0.4s ease; }
+#coach .coach-title { margin: 0 0 4px; font-family: var(--serif); font-weight: 900; font-size: 17px; color: var(--gold); letter-spacing: 0.1em; }
+#coach ol { margin: 0 0 10px; padding-left: 1.3em; font-size: 15px; line-height: 1.7; }
+#coach .btn-ghost { padding: 4px 16px; font-size: 14px; letter-spacing: 0.1em; float: right; }
+@media (max-width: 760px) { #coach { bottom: auto; top: calc(var(--safe-t) + 96px); width: calc(100% - 24px); } }
+
 /* ---------- dialogue ---------- */
 #dlg { position: fixed; left: 50%; bottom: calc(var(--safe-b) + 20px); transform: translateX(-50%); width: min(880px, calc(100% - 32px)); min-height: 170px; padding: 34px 34px 22px; display: flex; flex-direction: column; gap: 12px; animation: rise 0.45s ease; }
 @keyframes rise { from { opacity: 0; transform: translate(-50%, 16px); } }
