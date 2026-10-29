@@ -588,6 +588,7 @@ function putDown(obj, pos, rot, dur = 0.9) {
   return tw(dur, k => { obj.position.lerpVectors(p0, pos, k); obj.position.y += Math.sin(k * Math.PI) * 0.15; obj.quaternion.slerpQuaternions(q0, q1, k); });
 }
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
+const mesh = (geo, mat, x, y, z, parent) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); parent.add(m); return m; };
 
 /* =====================================================================
    STAGES: each `target` in actions.csv maps to one behaviour here
@@ -892,12 +893,17 @@ const BEHAVIOURS = {
 
     // 6. stand the hoe upright at the edge of the field, to free the hands (picked up again at dusk)
     hideCoach();
-    setTarget(null);
+    const hoeSpot = V(S[2].pos.x + 0.75, 0.04, S[2].pos.z + 0.35);   // just past the last mound
+    setTarget(hoeSpot.clone().setY(0.6), null);
+    target.approach = approachPoint({ pos: hoeSpot, reach: 1.4 }) || target.approach;
     setTask(a.name, a.task_6);
     step(5);
-    await offer([{ id: 'hoe_away', global: true, label: '插好鋤頭' }]);
+    coach('hoe_away', '鋤頭插在哪裡', ['就在剛蓋好的土堆旁邊，地上有發亮的圈圈和光柱', '走近到圈圈變綠', '按右下角的「插好鋤頭」或空白鍵，或點一下圈圈']);
+    const hoeMark = mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.5, 10), new THREE.MeshBasicMaterial({ visible: false }), hoeSpot.x, 0.25, hoeSpot.z, scene);
+    await offer([{ id: 'hoe_away', obj: hoeMark, pos: hoeSpot, reach: 2.4, label: '插好鋤頭' }]);
+    scene.remove(hoeMark);
+    setTarget(null);
     hooks.delete(hoeHook);
-    const hoeSpot = V(S[2].pos.x + 0.75, 0.04, S[2].pos.z + 0.35);
     await putDown(parts.hoe, hoeSpot, [0.04, 0.5, 0.05], 0.7);
     oneShot('stepDirt', 1.2);
     setHeld('');
