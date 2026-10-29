@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { srand, srange, TAU, tex, surface, std, cutoutDepth, contactShadow, softDot } from './util.js';
-import { L } from './layout.js?v=18';
+import { L } from './layout.js?v=31';
 
 /* Trees and plants. Branches are tapered tubes grown recursively; crowns
    are leaf cards whose normals point out from the crown centre so the
@@ -265,7 +265,7 @@ export function buildPlants(scene, time) {
   L.laneTrees.forEach(([x, z]) => elm(x, z, 1.1));
   L.peaches.forEach(([x, z, k]) => blossomTree(x, z, k));
   // shrubs along the fence and around the hut, to soften the edges
-  [[-9.2, 8.8], [-9.3, 4.5], [-9.1, 0.5], [9.2, 8.6], [9.1, 5.2], [-9.2, -6.5], [-9, -10.8], [9.1, -11], [-3.9, -10.6], [3.9, -10.4], [-1.9, 9.2], [1.9, 9.25], [-6.5, 9.2], [6.2, 9.3], [-5.2, -1.6], [-7.6, -5.3], [6.9, -4.6], [8.3, -1.7]].forEach(([x, z]) => bush(x, z, srange(0.9, 1.4), srange(0.22, 0.28)));
+  [[-9.2, 8.8], [-9.3, 4.5], [-9.1, 0.5], [9.2, 8.6], [9.1, 5.2], [-9.2, -6.5], [-9, -10.8], [9.1, -11], [-3.9, -10.6], [3.9, -10.4], [-1.9, 9.2], [1.9, 9.25], [-6.5, 9.2], [6.2, 9.3], [-5.2, -1.6], [-7.6, -5.3], [6.3, -3.3]].forEach(([x, z]) => bush(x, z, srange(0.9, 1.4), srange(0.22, 0.28)));
   // shrubs and trees beyond the fence fill the middle distance
   for (let i = 0; i < 26; i++) {
     const side = i % 3, x = side === 0 ? srange(-30, -12) : side === 1 ? srange(12, 30) : srange(-25, 25), z = side === 2 ? srange(-30, -15) : srange(-28, 20);

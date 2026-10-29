@@ -20,7 +20,7 @@ export const L = {
   eastFence: { x: 9.2, z0: -7, z1: -1.2 },              // 東籬 with chrysanthemums
   woodpile: [3.9, -7.3],
   jar: [-3.75, -6.9],
-  willows: [[-4.6, 7.4], [5.0, 8.3], [-8.0, -1.0], [6.6, -10.0], [-4.6, -11.2]],
+  willows: [[-4.6, 7.4], [5.0, 8.3], [-8.0, -1.0], [6.6, -10.0], [-6.6, -11.3]],
   elms: [[2.4, -11.4], [-1.2, -12.9], [8.3, 6.5], [-8.6, 7.2]],
   peaches: [[-2.7, -4.9, 'peach'], [2.8, -4.7, 'plum']],
   laneTrees: [[-5.6, 13.5], [6.2, 15.0]],
@@ -35,6 +35,9 @@ export const PATHS = [
   [[2.3, 0.9], [2.2, -1.05]],
 ];
 
+// the narrow way home at dusk, through tall grass past the east fence (道狹草木長)
+export const NARROW = [[7.1, 2.7], [7.7, 0.6], [7.85, -1.6], [7.35, -4.0], [5.6, -5.35], [3.6, -5.85], [1.6, -5.95], [0.7, -5.9]];
+
 // where the player should stand for each target (used by "帶我過去")
 export const APPROACH = {
   gate: [0, 11.3],
@@ -45,6 +48,7 @@ export const APPROACH = {
   hoe: [7.1, 2.7],
   door: [0, -6.1],
   yard: [0, -4.4],
+  narrow: [7.1, 2.7],
 };
 
 export const TREE_RADIUS = 0.45;

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { srand, srange, fbm, TAU } from './util.js';
-import { L, PATHS } from './layout.js?v=18';
+import { L, PATHS, NARROW } from './layout.js?v=31';
 
 /* Real blades rather than picture cards: each instance is a thin curved
    ribbon, shaded dark at the root and light at the tip, swaying in gusts. */
@@ -14,6 +14,11 @@ export function pathDist(x, z) {
   for (const line of PATHS) for (let i = 0; i < line.length - 1; i++) d = Math.min(d, segDist(x, z, ...line[i], ...line[i + 1]));
   return d;
 }
+export function narrowDist(x, z) {
+  let d = 1e9;
+  for (let i = 0; i < NARROW.length - 1; i++) d = Math.min(d, segDist(x, z, ...NARROW[i], ...NARROW[i + 1]));
+  return d;
+}
 const inRect = (x, z, b, pad = 0) => Math.abs(x - b.x) < b.w / 2 + pad && Math.abs(z - b.z) < b.d / 2 + pad;
 
 /** 0 = no grass, 1 = full meadow */
@@ -21,6 +26,7 @@ export function grassDensity(x, z) {
   const { fence } = L;
   if (z > fence.z1 + 0.3 && (Math.abs(x) < 2.0 || Math.abs(z - 13.4) < 1.3)) return 0;   // lanes outside
   if (pathDist(x, z) < 0.62) return 0;
+  if (narrowDist(x, z) < 1.35) return 0;   // the tall grass along the narrow path is built separately
   const y = L.yard;
   if (((x - 0) / 4.2) ** 2 + ((z - (y.z0 + y.z1) / 2 + 2.2) / 3.6) ** 2 < 1) return 0;
   if (inRect(x, z, L.veg, 0.1)) return 0;
@@ -148,4 +154,71 @@ function mergeTwo(a, b) {
     g.setAttribute(k, new THREE.BufferAttribute(out, 3));
   });
   return g;
+}
+
+/* Tall grass along the narrow path home. The blades lean away from the
+   walker, so the grass is pushed aside as you pass (道狹草木長). */
+export const PLAYER = { value: new THREE.Vector3(0, 0, 100) };
+export function buildTallGrass(scene, time) {
+  const SEG = 7, pos = [], uv = [], idx = [];
+  for (let i = 0; i <= SEG; i++) {
+    const t = i / SEG, w = 0.04 * (1 - t * 0.9), bend = t * t * 0.22;
+    pos.push(-w / 2, t, bend, w / 2, t, bend);
+    uv.push(0, t, 1, t);
+    if (i < SEG) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  geo.setAttribute('normal', new THREE.Float32BufferAttribute(new Array(pos.length / 3).fill([0, 1, 0]).flat(), 3));
+  geo.setIndex(idx);
+  const mat = new THREE.MeshStandardMaterial({ side: THREE.DoubleSide, roughness: 0.85 });
+  mat.onBeforeCompile = sh => {
+    sh.uniforms.uTime = time;
+    sh.uniforms.uPlayer = PLAYER;
+    sh.vertexShader = 'uniform float uTime; uniform vec3 uPlayer;\nvarying float vH;\n' + sh.vertexShader
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\n vH = uv.y;')
+      .replace('#include <project_vertex>', `
+        vec4 mvPosition = vec4(transformed, 1.0);
+        #ifdef USE_INSTANCING
+          mvPosition = instanceMatrix * mvPosition;
+        #endif
+        float hh = uv.y * uv.y;
+        vec2 ip = (instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xz;
+        float sway = sin(uTime * 1.3 + ip.x * 0.8 + ip.y * 0.5) * 0.08 + sin(uTime * 2.6 + ip.y) * 0.03;
+        mvPosition.x += sway * hh;
+        // pushed aside by the walker
+        vec2 away = mvPosition.xz - uPlayer.xz;
+        float d = length(away);
+        float push = smoothstep(0.85, 0.15, d);
+        mvPosition.xz += normalize(away + 1e-4) * push * 0.55 * hh;
+        mvPosition.y -= push * 0.25 * hh;
+        mvPosition = modelViewMatrix * mvPosition;
+        gl_Position = projectionMatrix * mvPosition;`);
+    sh.fragmentShader = 'varying float vH;\n' + sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+        diffuseColor.rgb *= mix(vec3(0.25, 0.28, 0.14), vec3(1.0), smoothstep(0.0, 0.9, vH));`);
+  };
+  const N = 9000, im = new THREE.InstancedMesh(geo, mat, N);
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), c = new THREE.Color();
+  let n = 0, guard = 0;
+  while (n < N && guard++ < N * 20) {
+    const k = Math.floor(srand() * (NARROW.length - 1)), t = srand();
+    const [ax, az] = NARROW[k], [bx, bz] = NARROW[k + 1];
+    const dx = bx - ax, dz = bz - az, len = Math.hypot(dx, dz);
+    const side = (srand() < 0.5 ? -1 : 1) * srange(0.3, 1.35);
+    const x = ax + dx * t - dz / len * side, z = az + dz * t + dx / len * side;
+    if (narrowDist(x, z) < 0.3 || pathDist(x, z) < 0.55) continue;
+    if (Math.abs(x - L.hut.x) < L.hut.w / 2 + 0.7 && Math.abs(z - L.hut.z) < L.hut.d / 2 + 0.8) continue;
+    q.setFromEuler(new THREE.Euler(srange(-0.15, 0.15), srange(0, TAU), srange(-0.15, 0.15)));
+    m.compose(new THREE.Vector3(x, 0, z), q, new THREE.Vector3(srange(0.9, 1.4), srange(0.75, 1.35), 1));
+    im.setMatrixAt(n, m);
+    c.setHSL(srange(0.17, 0.26), srange(0.35, 0.5), srange(0.3, 0.45));
+    im.setColorAt(n, c);
+    n++;
+  }
+  im.count = n;
+  im.receiveShadow = true;
+  im.frustumCulled = false;
+  scene.add(im);
+  return im;
 }

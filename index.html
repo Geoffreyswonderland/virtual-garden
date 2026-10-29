@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&family=Noto+Serif+TC:wght@600;900&display=swap">
-<link rel="stylesheet" href="css/style.css?v=27">
+<link rel="stylesheet" href="css/style.css?v=31">
 <script type="importmap">
 { "imports": {
   "three": "./lib/three/three.module.js",
@@ -27,6 +27,8 @@
       <h2 id="chap-title" class="chap-title"></h2>
       <div class="daybar" aria-hidden="true"><span id="day-fill"></span><i id="day-dot"></i></div>
       <p id="held" class="held"></p>
+      <p id="verse-count" class="held verse-count"></p>
+      <div id="wet" class="wet" hidden><span>衣襬</span><div class="bar"><i id="wet-fill"></i></div></div>
     </div>
   </section>
 
@@ -39,6 +41,7 @@
   </section>
 
   <nav id="menu" aria-label="選單">
+    <button id="btn-scroll" type="button"><span>詩卷</span></button>
     <button id="btn-help" type="button"><span>說明</span></button>
     <button id="btn-sound" type="button" aria-pressed="true"><span>聲音</span></button>
     <button id="btn-full" type="button"><span>全螢幕</span></button>
@@ -52,6 +55,8 @@
   <div id="progress" hidden aria-live="polite"><span id="progress-label"></span><div class="bar"><i id="progress-fill"></i></div><span id="progress-pct"></span></div>
   <section id="coach" class="panel" role="note" hidden></section>
 </div>
+
+<aside id="verse" aria-live="polite" hidden></aside>
 
 <section id="dlg" class="panel" hidden>
   <div id="dlg-speaker" class="dlg-speaker"></div>
@@ -67,7 +72,7 @@
     <h1>歸園田居</h1>
     <p class="lede">離開城市，推開柴門，在園子裡過完一天：清晨除草、正午種豆，黃昏扛著鋤頭，在月色中走回草屋。每一段結束後，會請你說說此刻的感受。</p>
     <ul class="facts">
-      <li>約 8 分鐘・建議戴耳機</li>
+      <li>約 10 分鐘・建議戴耳機</li>
       <li>點一下地面就會走過去；也可以用左下角搖桿或鍵盤。點東西就能互動</li>
       <li>這是展示雛形，紀錄只留在這台裝置上，不會上傳</li>
     </ul>
@@ -86,9 +91,32 @@
       <li><b>環顧</b>：在畫面上拖曳。</li>
       <li><b>互動</b>：點東西本身（太遠會自動走過去），或走近後點右下角的圓形按鈕。</li>
       <li><b>迷路了</b>：點右上角任務框裡的「帶我過去」。</li>
+      <li><b>詩卷</b>：〈歸園田居〉的每一句，會在做事或走過某處時浮現；右側的「詩卷」可以回頭看。園子裡還藏著幾張詩箋，找不到也沒關係。</li>
     </ul>
     <p class="fine">這個雛形用來展示「過程測量」：傳統研究只在活動前後各問一次，這裡記錄的是活動進行中每一段之後的感受、走動軌跡與停留時間。</p>
     <button id="help-close" class="btn-primary" type="button">回到園子</button>
+  </div>
+</section>
+
+<section id="scroll" class="overlay" hidden>
+  <div class="panel scroll-card">
+    <p class="eyebrow">詩卷</p>
+    <h2>今天遇見的詩句</h2>
+    <p class="fine">〈歸園田居〉其三的每一句，都會在做事或走過某處時出現。</p>
+    <ol id="scroll-main" class="scroll-list"></ol>
+    <p class="eyebrow" style="margin-top:12px">詩箋（散落在園子裡，找不到也沒關係）</p>
+    <ol id="scroll-explore" class="scroll-list"></ol>
+    <button id="scroll-close" class="btn-primary" type="button">回到園子</button>
+  </div>
+</section>
+
+<section id="post" class="overlay" hidden>
+  <div class="panel post-card">
+    <p class="eyebrow">回到現實之前</p>
+    <h2>最後幾個問題</h2>
+    <p class="lede">大約半分鐘。沒有對錯，憑當下的感覺就好。</p>
+    <div id="post-qs"></div>
+    <div class="row" style="align-items:center"><button id="post-ok" class="btn-primary" type="button" disabled>完成</button><span id="post-left" class="fine" style="margin:0"></span></div>
   </div>
 </section>
 
@@ -115,6 +143,6 @@
   </div>
 </section>
 
-<script type="module" src="js/main.js?v=30"></script>
+<script type="module" src="js/main.js?v=31"></script>
 </body>
 </html>

@@ -1,10 +1,11 @@
 import * as THREE from 'three';
 import { parseCSV } from './csv.js?v=16';
-import { createWorld } from './world/index.js?v=26';
-import { createControls } from './controls.js?v=30';
-import { audioInit, setScape, oneShot, waterSound, toggleSound } from './audio.js?v=16';
-import { L, PATHS, APPROACH, EYE } from './world/layout.js?v=18';
-import { pathDist } from './world/grass.js?v=21';
+import { createWorld } from './world/index.js?v=31';
+import { createControls } from './controls.js?v=31';
+import { audioInit, setScape, oneShot, waterSound, toggleSound, chime } from './audio.js?v=31';
+import { L, PATHS, APPROACH, EYE, NARROW } from './world/layout.js?v=31';
+import { pathDist, narrowDist, grassDensity } from './world/grass.js?v=31';
+import { ENV } from './world/env.js?v=31';
 
 /* =====================================================================
    STATE AND EVENT LOG
@@ -13,16 +14,17 @@ import { pathDist } from './world/grass.js?v=21';
    reconstructed and aligned with other data (e.g. a heart-rate strap).
    ===================================================================== */
 const $ = s => document.querySelector(s);
-const state = { actions: [], questions: [], log: [], t0: 0, running: false, stage: -1, autoWalks: 0, gateOpen: false, trail: [] };
+const state = { actions: [], questions: [], poems: [], collected: new Map(), log: [], t0: 0, running: false, stage: -1, autoWalks: 0, gateOpen: false, trail: [], wet: 0 };
 const now = () => Math.round(performance.now() - state.t0);
 const log = (type, id = '', value = '') => state.log.push({ t: now(), type, id, value: String(value) });
 const hooks = new Set();   // per-frame callbacks used by stages
 
 async function loadData() {
   const get = u => fetch(u, { cache: 'no-store' }).then(r => { if (!r.ok) throw new Error(u); return r.text(); });
-  const [a, q] = await Promise.all([get('data/actions.csv'), get('data/questions.csv')]);
+  const [a, q, p] = await Promise.all([get('data/actions.csv'), get('data/questions.csv'), get('data/poems.csv')]);
   state.actions = parseCSV(a).sort((x, y) => Number(x.order) - Number(y.order));
   state.questions = parseCSV(q);
+  state.poems = parseCSV(p).sort((x, y) => Number(x.order) - Number(y.order));
 }
 
 /* =====================================================================
@@ -227,6 +229,70 @@ function coach(key, title, lines) {
 }
 const hideCoach = () => { $('#coach').hidden = true; };
 function setHeld(name) { $('#held').textContent = name ? `手上：${name}` : ''; }
+
+/* ---------- verses: each line appears where it happens, and is kept in the scroll ---------- */
+const verseQueue = [];
+let versePlaying = false;
+function verse(id, how = '') {
+  if (!state.running || state.collected.has(id)) return;
+  const v = state.poems.find(p => p.id === id);
+  if (!v) return;
+  state.collected.set(id, now());
+  log('verse', id, how);
+  updateVerseCount();
+  verseQueue.push(v);
+  if (!versePlaying) playVerses();
+}
+async function playVerses() {
+  versePlaying = true;
+  const el = $('#verse');
+  while (verseQueue.length) {
+    const v = verseQueue.shift();
+    el.innerHTML = `${v.group === 'explore' ? '<p class="v-tag">尋得詩箋</p>' : ''}<div class="v-lines">${v.text.split(/[，,]/).map(l => `<span>${esc(l)}</span>`).join('')}</div><p class="v-src">${esc(v.source)}</p>`;
+    el.hidden = false;
+    requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('on')));
+    chime();
+    await wait(5600);
+    el.classList.remove('on');
+    await wait(1000);
+    el.hidden = true;
+  }
+  versePlaying = false;
+}
+function updateVerseCount() {
+  const main = state.poems.filter(p => p.group === 'main'), ex = state.poems.filter(p => p.group === 'explore');
+  const got = arr => arr.filter(p => state.collected.has(p.id)).length;
+  $('#verse-count').textContent = `詩句 ${got(main)}／${main.length}・詩箋 ${got(ex)}／${ex.length}`;
+}
+function openScroll() {
+  const row = p => state.collected.has(p.id)
+    ? `<li class="got"><span class="s-text">${esc(p.text)}</span><span class="s-src">${esc(p.source)}</span></li>`
+    : `<li><span class="s-text">${'○'.repeat(p.text.replace(/[，,]/g, '').length)}</span><span class="s-src">${esc(p.how)}</span></li>`;
+  $('#scroll-main').innerHTML = state.poems.filter(p => p.group === 'main').map(row).join('');
+  $('#scroll-explore').innerHTML = state.poems.filter(p => p.group === 'explore').map(row).join('');
+  $('#scroll').hidden = false;
+  log('scroll_open');
+}
+const insideHut = (x, z) => { const b = parts.interior.bounds; return x > b.x0 && x < b.x1 && z > b.z0 && z < b.z1; };
+// lines found by wandering (歸園田居其一 and 飲酒其五); never required
+let gazeVillage = 0;
+const lookDir = new THREE.Vector3();
+hooks.add(dt => {
+  if (!state.running || !controls.enabled) return;
+  const { x, z } = controls.st;
+  if (state.stage >= 1 && Math.hypot(x, z + 5.0) < 2.0) verse('e1', 'yard');
+  if ((z < L.hut.z - L.hut.d / 2 - 0.3 && Math.abs(x) < 5) || L.peaches.some(([px, pz]) => Math.hypot(x - px, z - pz) < 1.7)) verse('e2', z < L.hut.z ? 'behind' : 'peach');
+  if (x > 7.9 && z > L.eastFence.z0 && z < L.eastFence.z1) verse('e5', 'east_fence');
+  if (insideHut(x, z)) verse('e4', 'inside');
+  camera.getWorldDirection(lookDir);
+  const vx = -48 - x, vz = -47 - z, hl = Math.hypot(lookDir.x, lookDir.z) || 1;
+  const dot = (lookDir.x * vx + lookDir.z * vz) / Math.hypot(vx, vz) / hl;
+  if (dot > 0.975 && lookDir.y > -0.3) { gazeVillage += dt; if (gazeVillage > 1.5) verse('e3', 'gaze'); } else gazeVillage = Math.max(0, gazeVillage - dt);
+  // standing a little higher on the hut floor
+  controls.st.floorTarget = insideHut(x, z) ? parts.interior.floor : 0;
+});
+$('#btn-scroll').addEventListener('click', openScroll);
+$('#scroll-close').addEventListener('click', () => { $('#scroll').hidden = true; });
 let toastTimer = 0;
 function toast(msg, ms = 1800) {
   const t = $('#toast');
@@ -277,6 +343,35 @@ async function say(speaker, tag, text, label = '繼續') {
   b.focus();
   await new Promise(r => b.addEventListener('click', r, { once: true }));
   closeDialogue();
+}
+/** end of a stage: the lines found in it, and one gentle question, on one card */
+function stageCard(a, tag) {
+  const lines = state.poems.filter(p => p.stage === a.id && state.collected.has(p.id));
+  return new Promise(resolve => {
+    openDialogue('', tag);
+    dlgBody.className = 'dlg-body';
+    dlgBody.innerHTML = `<div class="recap">${lines.map(p => `<span>${esc(p.text)}</span>`).join('')}</div>
+      <p class="rate-q" id="rq">${esc(a.rating_prompt || '此刻你有多放鬆？')}</p>
+      <div class="rate-row"><input type="range" class="untouched" id="rin" min="0" max="10" step="1" value="5" aria-labelledby="rq"><span class="rate-val" id="rv">—</span></div>
+      <div class="rate-labels"><span>0　完全不放鬆</span><span>非常放鬆　10</span></div>`;
+    dlgActions.innerHTML = '';
+    const b = button('繼續');
+    b.disabled = true;
+    const inp = $('#rin'), val = $('#rv');
+    const mark = () => { inp.classList.remove('untouched'); val.textContent = inp.value; b.disabled = false; };
+    ['input', 'pointerdown', 'keydown'].forEach(ev => inp.addEventListener(ev, mark));
+    b.addEventListener('click', () => { log('rating', 'relax_after_' + a.id, inp.value); closeDialogue(); resolve(Number(inp.value)); }, { once: true });
+  });
+}
+/** two-button choice in the dialogue box */
+function choose(speaker, tag, text, labels) {
+  return new Promise(resolve => {
+    openDialogue(speaker, tag);
+    dlgBody.className = 'dlg-body';
+    dlgBody.textContent = text;
+    dlgActions.innerHTML = '';
+    labels.forEach((l, i) => { const b = button(l, i ? 'btn-ghost' : 'btn-primary'); b.addEventListener('click', () => { closeDialogue(); resolve(i); }, { once: true }); });
+  });
 }
 async function showPoem(a, tag) {
   openDialogue('陶淵明', tag);
@@ -778,14 +873,17 @@ const BEHAVIOURS = {
     setTarget(V(0, 1, L.gate.z), 'gate');
     setTask(a.name, a.task);
     walkMode(true);
+    setTimeout(() => verse('q1', 'lane'), 1500);
     await offer([{ id: 'gate', obj: parts.gate, pos: V(0, 0, L.gate.z + 0.2), reach: 2.6, label: '推開' }]);
+    verse('q1', 'lane');
     setTarget(null);
     oneShot('creak');
     setScape('garden', 6);
     log('soundscape', 'garden');
     await tw(2.4, k => { parts.gate[0].rotation.y = 1.65 * k; parts.gate[1].rotation.y = -1.65 * k; });
     state.gateOpen = true;
-    await wait(700);
+    verse('q2', 'gate');
+    await wait(1500);
   },
 
   /* 晨：晨興理荒穢 */
@@ -816,7 +914,7 @@ const BEHAVIOURS = {
       })));
       const w = item.obj;
       w.userData.pulled = true;
-      if (pulled === 0) beacon.visible = false;
+      if (pulled === 0) { beacon.visible = false; verse('m3', 'first_weed'); }
       oneShot('pull');
       burst(w.position);
       const where = await placeWeed(w, holdSt.lastSrc);
@@ -854,6 +952,8 @@ const BEHAVIOURS = {
     const chop = spot => on => { pose.mode = on ? 'chop' : 'shoulder'; pose.at = spot.pos; if (on) hideCoach(); };
     const count = (txt, n) => `${txt}（${n} / ${S.length}）`;
     const STEPS = ['拿鋤頭', '挖洞', '拿種子袋', '放豆子', '蓋土', '插好鋤頭', '澆水'];
+    const fieldHook = () => { const b = L.beans; if (Math.abs(controls.st.x - b.x) < b.w / 2 && Math.abs(controls.st.z - b.z) < b.d / 2) { verse('m2', 'field'); hooks.delete(fieldHook); } };
+    hooks.add(fieldHook);
     const step = i => setSteps(STEPS, i);
 
     // 1. the hoe
@@ -880,6 +980,7 @@ const BEHAVIOURS = {
         onProgress: p => { sp.hole.scale.setScalar(Math.max(0.001, p)); sp.pile.scale.y = Math.max(0.001, p * 0.9); sp.stick.visible = p < 0.5; },
       })));
       S[item.tag].dug = true;
+      verse('m2', 'field');
       pose.mode = 'shoulder';
       if (n === 0) beacon.visible = false;
     }
@@ -903,6 +1004,7 @@ const BEHAVIOURS = {
       const item = await offer(S.filter(sp => !sp.sown).map(sp => ({ id: 'sow', tag: S.indexOf(sp), obj: sp.hit, pos: sp.pos, reach: 1.0, label: '放入豆子' })));
       const sp = S[item.tag];
       sp.sown = true;
+      verse('m1', 'first_bean');
       // crouch beside the hole and drop the beans in by hand
       controls.st.crouchTarget = -0.75;
       controls.faceTo(sp.pos.x, sp.pos.y, sp.pos.z, 0.5);
@@ -1023,33 +1125,51 @@ const BEHAVIOURS = {
     await wait(2200);
   },
 
-  /* 暮：帶月荷鋤歸，道狹草木長 */
+  /* 暮：帶月荷鋤歸，道狹草木長 — fetch the hoe, take the narrow path home under the rising moon */
   async hoe(a) {
     walkMode(true);
+    const STEPS = ['扛起鋤頭', '走進小徑', '抬頭望月', '回到家門口'];
     const hoeAt = parts.hoe.position.clone().setY(0);
     setTarget(hoeAt.clone().setY(0.8), null);
     target.approach = approachPoint({ pos: hoeAt, reach: 1.6 }) || target.approach;
     setTask(a.name, a.task);
-    setSteps(['扛起鋤頭', '走回草屋'], 0);
+    setSteps(STEPS, 0);
     await offer([{ id: 'hoe', obj: parts.hoe, pos: hoeAt, reach: 2.3, label: '扛起' }]);
-    setSteps(['扛起鋤頭', '走回草屋'], 1);
     oneShot('pick');
     await hold(parts.hoe, V(0.42, -0.95, -0.3), [-0.35, 0.15, -0.55], 1.1);
     setHeld('鋤頭');
-    const door = V(L.hut.door[0], 1, L.hut.door[1]);
-    setTarget(door, 'door');
+    setTarget(V(NARROW[0][0], 0.8, NARROW[0][1]), 'narrow');
     setTask(a.name, a.task_2);
+    setSteps(STEPS, 1);
+    coach('narrow', '回家的路', ['從豆田東北角的小徑進去（光柱的地方）', '小徑很窄，兩旁的草比人還高，走過時會被你撥開', '天色會隨著你走近家門慢慢變暗，月亮升起來時，抬頭看看它']);
     await state.duskReady;
     log('walk_home', a.id, 'start');
+    const door = V(L.hut.door[0], 1, L.hut.door[1]);
+    const moonDir = new THREE.Vector3(...ENV.night.sunDir).normalize();
     const ARRIVE = 2.3;
     const d0 = Math.max(ARRIVE + 1, flat(door, controls.st.x, controls.st.z));
-    let kMax = 0, nightSound = false;
+    let kMax = 0, nightSound = false, inNarrow = false, moonHinted = false, gaze = 0;
     await new Promise(resolve => {
-      const h = () => {
-        const d = flat(door, controls.st.x, controls.st.z);
+      const h = dt => {
+        const { x, z } = controls.st;
+        const d = flat(door, x, z);
         const k = Math.min(1, Math.max(0, 1 - (d - ARRIVE) / (d0 - ARRIVE)));
         if (k > kMax + 0.002) { kMax = k; env.mixEnv('dusk', 'night', ease(kMax)); }
         if (kMax > 0.5 && !nightSound) { nightSound = true; setScape('night', 8); log('soundscape', 'night'); }
+        if (!inNarrow && narrowDist(x, z) < 0.7) {
+          inNarrow = true;
+          verse('m5', 'narrow');
+          hideCoach();
+          setTarget(door, 'door');
+          setTask(a.name, a.task_4);
+          setSteps(STEPS, 2);
+        }
+        // the moon: once it is up, look at it for a moment
+        if (env.env.night > 0.5 && !state.collected.has('m4')) {
+          if (!moonHinted) { moonHinted = true; toast('月亮升起來了，抬頭看看', 3500); setTask(a.name, `${a.task_3}，再${a.task_4}`); }
+          camera.getWorldDirection(lookDir);
+          if (lookDir.dot(moonDir) > 0.95) { gaze += dt; if (gaze > 1.2) { verse('m4', 'moon_gaze'); setTask(a.name, a.task_4); setSteps(STEPS, 3); } } else gaze = Math.max(0, gaze - dt * 0.5);
+        }
         if (d < ARRIVE) { hooks.delete(h); resolve(); }
       };
       hooks.add(h);
@@ -1057,26 +1177,153 @@ const BEHAVIOURS = {
     log('walk_home', a.id, 'arrived');
     env.setEnv('night', 2);
     if (!nightSound) setScape('night', 4);
+    // make sure both lines were seen, even by someone who took the main path or never looked up
+    if (!state.collected.has('m5')) verse('m5', 'arrival');
+    if (!state.collected.has('m4')) { controls.faceTo(controls.st.x + moonDir.x * 10, 1.6 + moonDir.y * 10, controls.st.z + moonDir.z * 10, 2.0); verse('m4', 'arrival'); await wait(2200); }
     setTarget(null);
-    await putDown(parts.hoe, V(1.25, 0.34, L.hut.z + L.hut.d / 2 + 0.12), [0.2, 0, 0.12], 1.1);
-    setHeld('');
-    await wait(600);
+    setSteps(STEPS, 4);
+    await wait(800);
   },
 
-  /* 結：夕露沾我衣 */
-  async linger(a) {
+  /* 夜：夕露沾我衣，衣沾不足惜 — walk in the dewy grass until the hem is wet, then choose */
+  async dew(a) {
     walkMode(true);
-    controls.faceTo(0, 0.3, -1.5, 3.2);
+    const STEPS = ['走進草地', '衣裳濕了', '回屋'];
     tw(3.5, k => { W.dewMat.uniforms.strength.value = k; });
     setTask(a.name, a.task);
+    setSteps(STEPS, 0);
+    coach('dew', '夜裡的露水', ['離開小路，走進院子的草地', '左上角會顯示衣襬沾濕的程度', '想走去哪裡都可以']);
     const t0 = now(), m0 = controls.st.moved;
-    await wait(10000);
-    setTask(a.name, `${a.task}。想好了，就回屋歇息吧。`);
-    await offer([{ id: 'rest', global: true, label: '回屋歇息' }]);
+    state.wet = 0;
+    $('#wet').hidden = false;
+    const showWet = () => { $('#wet-fill').style.width = `${Math.round(state.wet * 100)}%`; };
+    showWet();
+    await new Promise(resolve => {
+      const h = dt => {
+        const { x, z } = controls.st, sp = controls.speed();
+        if (sp > 0.2 && grassDensity(x, z) > 0.25) { state.wet = Math.min(1, state.wet + sp * dt * 0.17); showWet(); }
+        if (state.wet >= 1) { hooks.delete(h); resolve(); }
+      };
+      hooks.add(h);
+      // nobody gets stuck here: after a while the dew finds them anyway
+      setTimeout(() => { if (state.wet < 1) { state.wet = 1; showWet(); log('wet', 'timeout'); } }, 90000);
+    });
+    hideCoach();
+    verse('m6', 'wet');
+    log('wet', a.id, now() - t0);
+    setSteps(STEPS, 1);
+    await wait(3000);
+    const c = await choose('', '第五段', a.task_2 || '衣裳濕了……', ['不要緊，再走走', '回屋去']);
+    log('dew_choice', a.id, c === 0 ? 'keep_walking' : 'go_in');
+    walkMode(true);
+    if (c === 0) {
+      verse('m7', 'keep_walking');
+      setTask(a.name, a.task_3);
+      setSteps(STEPS, 2);
+      await offer([{ id: 'go_in', pos: V(L.hut.door[0], 0, L.hut.door[1]), reach: 2.2, label: '回屋' }]);
+    }
     log('linger', a.id, now() - t0);
     log('linger_distance', a.id, (controls.st.moved - m0).toFixed(1));
+    $('#wet').hidden = true;
+  },
+
+  /* 歸：但使願無違 — open the door, hang up the hoe, sit by the window, end when you choose */
+  async house(a) {
+    walkMode(true);
+    const I = parts.interior, STEPS = ['推開門', '掛上鋤頭', '坐到窗邊'];
+    const doorP = V(L.hut.x, 0, L.hut.z + L.hut.d / 2 + 0.05);
+    setTarget(doorP.clone().setY(1), 'door');
+    setTask(a.name, a.task);
+    setSteps(STEPS, 0);
+    await offer([{ id: 'door', obj: I.doors, pos: doorP, reach: 2.2, label: '推開門' }]);
+    oneShot('creak');
+    await tw(1.5, k => { I.doors[0].rotation.y = 1.35 * k; I.doors[1].rotation.y = -1.35 * k; });
+    const bi = W.colliders.boxes.indexOf(I.doorBlock);
+    if (bi >= 0) W.colliders.boxes.splice(bi, 1);
+    // 衣沾不足惜 for those who went straight in
+    if (!state.collected.has('m7')) verse('m7', 'at_door');
+    // hang the hoe on the pegs
+    setTarget(I.rack.clone(), null);
+    target.approach = [I.rackStand.x, I.rackStand.z];
+    setTask(a.name, a.task_2);
+    setSteps(STEPS, 1);
+    await offer([{ id: 'rack', pos: V(I.rack.x, 0, I.rack.z - 0.3), ringY: 0.37, labelY: 1.9, reach: 1.6, label: '掛上鋤頭' }]);
+    await putDown(parts.hoe, V(I.rack.x - 0.7, I.rack.y + 0.04, I.rack.z), [0, 0, -Math.PI / 2], 0.9);
+    oneShot('pick');
+    setHeld('');
+    // sit by the window
+    setTarget(I.stool.clone().setY(0.8), null);
+    target.approach = [I.stool.x - 0.5, I.stool.z - 0.4];
+    setTask(a.name, a.task_3);
+    setSteps(STEPS, 2);
+    await offer([{ id: 'stool', pos: I.stool, ringY: 0.37, reach: 1.4, label: '坐下' }]);
+    setTarget(null);
+    walkMode(false);
+    $('#hud').classList.add('quiet');
+    const from = { x: controls.st.x, z: controls.st.z };
+    await tw(1.2, k => { controls.st.x = lerp(from.x, I.stool.x, k); controls.st.z = lerp(from.z, I.stool.z - 0.05, k); });
+    controls.st.crouchTarget = -0.7;
+    controls.faceTo(I.stool.x, 1.25, L.hut.z + L.hut.d / 2 + 4, 1.5);
+    setSteps(STEPS, 3);
+    setTask(a.name, '靜靜坐一會兒，看看窗外的月色。想結束的時候再結束。');
+    await wait(1800);
+    verse('m8', 'sit');
+    const tSit = now();
+    await wait(7000);
+    await endingPoem();
+    log('sit_duration', a.id, now() - tSit);
+    $('#hud').classList.remove('quiet');
   },
 };
+
+/** the whole poem, line by line; the person decides when the day ends */
+function endingPoem() {
+  return new Promise(resolve => {
+    openDialogue('陶淵明', '歸園田居・其三');
+    dlgBody.className = 'dlg-body poem ending';
+    const lines = state.poems.filter(p => p.group === 'main' && p.source.includes('其三'));
+    // in the order of the poem
+    const order = ['m1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8'];
+    const sorted = order.map(id => lines.find(p => p.id === id)).filter(Boolean);
+    const pairs = [];
+    for (let i = 0; i < sorted.length; i += 2) pairs.push(sorted.slice(i, i + 2).map(p => p.text).join('，') + '。');
+    dlgBody.innerHTML = `<div class="lines">${pairs.map((l, i) => `<span style="animation-delay:${i * 1.2}s">${esc(l)}</span>`).join('')}</div>`;
+    dlgActions.innerHTML = '';
+    const stay = button('再坐一會兒', 'btn-ghost');
+    const end = button('結束今天');
+    end.disabled = true;
+    setTimeout(() => { end.disabled = false; }, pairs.length * 1200 + 800);
+    stay.addEventListener('click', () => { log('stay_longer'); closeDialogue(); setTimeout(() => endingPoem().then(resolve), 15000); }, { once: true });
+    end.addEventListener('click', () => { closeDialogue(); resolve(); }, { once: true });
+  });
+}
+
+/** the last questions, all on one calm page */
+function postPage(questions) {
+  return new Promise(resolve => {
+    const box = $('#post-qs');
+    box.innerHTML = questions.map((q, i) => `
+      <div class="pq">
+        <p class="rate-q" id="pq${i}">${esc(q.text)}</p>
+        <div class="rate-row"><input type="range" class="untouched" id="pin${i}" min="${q.min}" max="${q.max}" step="1" value="${Math.round((+q.min + +q.max) / 2)}" aria-labelledby="pq${i}"><span class="rate-val" id="pv${i}">—</span></div>
+        <div class="rate-labels"><span>${esc(q.min)}　${esc(q.min_label)}</span><span>${esc(q.max_label)}　${esc(q.max)}</span></div>
+      </div>`).join('');
+    const ok = $('#post-ok'), touched = new Set();
+    ok.disabled = true;
+    questions.forEach((q, i) => {
+      const inp = $('#pin' + i), val = $('#pv' + i);
+      const mark = () => { inp.classList.remove('untouched'); val.textContent = inp.value; touched.add(i); ok.disabled = touched.size < questions.length; $('#post-left').textContent = touched.size < questions.length ? `還有 ${questions.length - touched.size} 題` : ''; };
+      ['input', 'pointerdown', 'keydown'].forEach(ev => inp.addEventListener(ev, mark));
+    });
+    $('#post-left').textContent = `共 ${questions.length} 題`;
+    $('#post').hidden = false;
+    ok.onclick = () => {
+      questions.forEach((q, i) => log('rating', q.id, $('#pin' + i).value));
+      $('#post').hidden = true;
+      resolve();
+    };
+  });
+}
 
 /* =====================================================================
    SESSION FLOW
@@ -1091,7 +1338,9 @@ async function runSession() {
   state.running = true;
   log('session_start', W.tier, new Date().toISOString());
   log('soundscape', 'city');
+  state.collected = new Map();
   $('#hud').hidden = false;
+  updateVerseCount();
   setTask('', '');
   setChapter('序・入園之前', '歸去來', 'morning');
   setTarget(null);
@@ -1109,11 +1358,11 @@ async function runSession() {
     const tag = `第${NUM[i] || i + 1}段`;
     setChapter(`${tag}・${a.time_label || ''}`, a.name, a.time_of_day);
     log('action_start', a.id);
-    if (a.target === 'linger' && i === from) env.setEnv('night', 0.01);
-    if (a.time_of_day && a.target !== 'linger') {
-      const p = env.setEnv(a.time_of_day, i === from ? 0.01 : 7);
+    if (a.time_of_day) {
+      const p = env.setEnv(a.time_of_day, i === from ? 0.01 : (a.time_of_day === 'night' ? 2 : 7));
       if (a.target === 'hoe') state.duskReady = p;
     }
+    if (i === from && (a.target === 'dew' || a.target === 'house')) { setScape('night', 0.5); controls.place(0, -4.8, Math.PI, -0.1); }
     await say('旁白', tag, a.narration || a.task || '', '好');
     const run = BEHAVIOURS[a.target];
     if (run) await run(a);
@@ -1121,13 +1370,14 @@ async function runSession() {
     log('action_complete', a.id);
     walkMode(false);
     setTask('', '');
-    await showPoem(a, tag);
-    await askRating({ id: 'relax_after_' + a.id, text: a.rating_prompt || '此刻你有多放鬆？', min: 0, max: 10, min_label: '完全不放鬆', max_label: '非常放鬆' }, tag);
+    // wait for any line still on screen, then one gentle question with the stage's lines
+    while (versePlaying) await wait(300);
+    if (a.rating_prompt) await stageCard(a, tag);
   }
 
   state.stage = state.actions.length;
-  setChapter('結・回到屋裡', '但使願無違', 'night');
-  for (const [i, q] of post.entries()) await askRating(q, '體驗之後', `${i + 1} / ${post.length}`);
+  $('#hud').hidden = true;
+  await postPage(post);
   log('session_end');
   state.running = false;
   $('#hud').hidden = true;
@@ -1137,7 +1387,7 @@ async function runSession() {
 /* =====================================================================
    RESULT: relaxation over time, and where the person walked
    ===================================================================== */
-const STAGE_COL = ['#9fc7b4', '#e2cb82', '#e8a06a', '#c08ac6', '#8fb0e8'];
+const STAGE_COL = ['#9fc7b4', '#e2cb82', '#e8a06a', '#c08ac6', '#8fb0e8', '#f0d3a0'];
 function showResult() {
   const ratings = state.log.filter(e => e.type === 'rating');
   const relax = ratings.filter(e => e.id.startsWith('relax'));
@@ -1150,7 +1400,7 @@ function showResult() {
   const tick = 'rgba(241,233,216,.12)', txt = '#bdb4a1';
   $('#timeline').innerHTML = `<svg viewBox="0 0 ${Wd} ${H}" role="img" aria-label="放鬆程度隨活動進行的變化">
     ${[0, 2, 4, 6, 8, 10].map(v => `<line x1="${Lm}" x2="${Wd - Rm}" y1="${Y(v)}" y2="${Y(v)}" stroke="${tick}"/><text x="${Lm - 10}" y="${Y(v) + 4}" text-anchor="end" font-size="13" fill="${txt}">${v}</text>`).join('')}
-    ${done.map((e, i) => `<line x1="${X(e.t)}" x2="${X(e.t)}" y1="${T}" y2="${H - B}" stroke="${STAGE_COL[i % 5]}" stroke-dasharray="3 4" opacity=".7"/><text x="${X(e.t)}" y="${H - B + (i % 2 ? 36 : 20)}" text-anchor="middle" font-size="13" fill="${STAGE_COL[i % 5]}">${esc((state.actions.find(a => a.id === e.id) || {}).name || e.id)}</text>`).join('')}
+    ${done.map((e, i) => `<line x1="${X(e.t)}" x2="${X(e.t)}" y1="${T}" y2="${H - B}" stroke="${STAGE_COL[i % 6]}" stroke-dasharray="3 4" opacity=".7"/><text x="${X(e.t)}" y="${H - B + (i % 2 ? 36 : 20)}" text-anchor="middle" font-size="13" fill="${STAGE_COL[i % 6]}">${esc((state.actions.find(a => a.id === e.id) || {}).name || e.id)}</text>`).join('')}
     <polyline points="${pts.map(p => p.join(',')).join(' ')}" fill="none" stroke="#d2b77e" stroke-width="2.5"/>
     ${relax.map((e, i) => `<circle cx="${pts[i][0]}" cy="${pts[i][1]}" r="5" fill="#f1e9d8" stroke="#d2b77e" stroke-width="2"/><text x="${pts[i][0]}" y="${pts[i][1] + (i % 2 ? 24 : -12)}" text-anchor="middle" font-size="13" fill="#f1e9d8">${esc(label(e.id))} ${e.value}</text>`).join('')}
     <text x="${Wd - Rm}" y="${T - 14}" text-anchor="end" font-size="12" fill="${txt}">經過 ${Math.round(end / 1000)} 秒</text>
@@ -1176,17 +1426,20 @@ function showResult() {
     <text x="${MX(L.beans.x)}" y="${MZ(L.beans.z) + 5}" text-anchor="middle" font-size="12" fill="#bdb4a1">豆田</text>
     <text x="${MX(L.pond.x)}" y="${MZ(L.pond.z) + 4}" text-anchor="middle" font-size="12" fill="#bdb4a1">池</text>
     <text x="${MX(L.eastFence.x) - 4}" y="${MZ((L.eastFence.z0 + L.eastFence.z1) / 2)}" text-anchor="end" font-size="12" fill="#bdb4a1">東籬</text>
-    ${seg.filter(s => s.s >= 0 && s.s < 5).map(s => `<polyline points="${s.p.map(([x, z]) => `${MX(x).toFixed(1)},${MZ(z).toFixed(1)}`).join(' ')}" fill="none" stroke="${STAGE_COL[s.s]}" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>`).join('')}
+    ${seg.filter(s => s.s >= 0 && s.s < 6).map(s => `<polyline points="${s.p.map(([x, z]) => `${MX(x).toFixed(1)},${MZ(z).toFixed(1)}`).join(' ')}" fill="none" stroke="${STAGE_COL[s.s]}" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>`).join('')}
     <circle cx="${MX(L.start[0])}" cy="${MZ(L.start[1])}" r="5" fill="#f1e9d8"/><text x="${MX(L.start[0]) + 9}" y="${MZ(L.start[1]) + 4}" font-size="12" fill="#f1e9d8">起點</text>
   </svg>
-  <p class="fine">${state.actions.map((a, i) => `<span style="color:${STAGE_COL[i % 5]}">━ ${esc(a.name)}</span>`).join('　')}</p>`;
+  <p class="fine">${state.actions.map((a, i) => `<span style="color:${STAGE_COL[i % 6]}">━ ${esc(a.name)}</span>`).join('　')}</p>`;
 
   const extra = ratings.filter(e => e.id.startsWith('prs_')).map(e => {
     const q = state.questions.find(x => x.id === e.id) || {};
     return [q.subscale || e.id, e.value];
   });
   const lingerMs = Number((state.log.find(e => e.type === 'linger') || {}).value || 0);
-  const cards = [...extra, ['走動距離（公尺）', Math.round(walked)], ['月下停留（秒）', Math.round(lingerMs / 1000)], ['使用「帶我過去」', `${state.autoWalks} 次`]];
+  const main = state.poems.filter(p => p.group === 'main'), ex = state.poems.filter(p => p.group === 'explore');
+  const got = arr => arr.filter(p => state.collected.has(p.id)).length;
+  const sitMs = Number((state.log.find(e => e.type === 'sit_duration') || {}).value || 0);
+  const cards = [...extra, ['走動距離（公尺）', Math.round(walked)], ['月下停留（秒）', Math.round(lingerMs / 1000)], ['窗邊坐了（秒）', Math.round(sitMs / 1000)], ['詩句', `${got(main)}／${main.length}`], ['尋得的詩箋', `${got(ex)}／${ex.length}`], ['使用「帶我過去」', `${state.autoWalks} 次`]];
   $('#post-scores').innerHTML = cards.map(([k2, v]) => `<div class="score">${esc(k2)}<b>${esc(v)}</b></div>`).join('');
   $('#result').hidden = false;
 }

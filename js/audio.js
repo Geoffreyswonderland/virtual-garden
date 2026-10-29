@@ -159,3 +159,15 @@ export function toggleSound() {
   return AU.on;
 }
 export const soundOn = () => AU.on;
+
+/** a soft two-note chime when a line of poetry appears */
+export function chime() {
+  if (!AU.ctx) return;
+  const C = AU.ctx, t = C.currentTime;
+  [[880, 0], [1318.5, 0.18]].forEach(([f, d]) => {
+    const o = C.createOscillator(), g = C.createGain();
+    o.type = 'sine'; o.frequency.value = f;
+    g.gain.setValueAtTime(0, t + d); g.gain.linearRampToValueAtTime(0.05, t + d + 0.02); g.gain.exponentialRampToValueAtTime(0.0005, t + d + 1.6);
+    o.connect(g).connect(AU.master); o.start(t + d); o.stop(t + d + 1.7);
+  });
+}

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { tex, fbm, smooth } from './util.js';
-import { L, PATHS } from './layout.js?v=18';
+import { L, PATHS, NARROW } from './layout.js?v=31';
 
 /* Ground: one large plane, flat around the homestead and rolling further
    out. Grass, packed earth and tilled soil are blended in the shader from a
@@ -36,6 +36,11 @@ function paintMask() {
         line.forEach(([x, z], j) => { const [px, pz] = toPx(x, z); j ? g.lineTo(px, pz) : g.moveTo(px, pz); });
         g.stroke();
       });
+      // the narrow path home
+      g.lineWidth = 0.6 * w * k;
+      g.beginPath();
+      NARROW.forEach(([x, z], j) => { const [px, pz] = toPx(x, z); j ? g.lineTo(px, pz) : g.moveTo(px, pz); });
+      g.stroke();
       // the lane outside the gate is wider
       g.lineWidth = 3.4 * w * k;
       g.beginPath(); g.moveTo(...toPx(0, 10.4)); g.lineTo(...toPx(0, 26)); g.stroke();

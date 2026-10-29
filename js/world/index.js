@@ -1,10 +1,10 @@
 import * as THREE from 'three';
-import { createEnv, pickTier } from './env.js?v=18';
-import { buildTerrain } from './terrain.js?v=18';
-import { buildGrass } from './grass.js?v=21';
-import { buildPlants, updatePlants, plantColliders, FOLIAGE } from './plants.js?v=18';
-import { buildStructures, boxColliders, circleColliders } from './build.js?v=26';
-import { buildAtmos } from './atmos.js?v=18';
+import { createEnv, pickTier } from './env.js?v=31';
+import { buildTerrain } from './terrain.js?v=31';
+import { buildGrass, buildTallGrass, PLAYER } from './grass.js?v=31';
+import { buildPlants, updatePlants, plantColliders, FOLIAGE } from './plants.js?v=31';
+import { buildStructures, boxColliders, circleColliders } from './build.js?v=31';
+import { buildAtmos } from './atmos.js?v=31';
 
 export function createWorld(canvas) {
   const tier = pickTier();
@@ -12,6 +12,7 @@ export function createWorld(canvas) {
   const { scene, camera, time } = env;
   buildTerrain(scene);
   buildGrass(scene, time, env.tier.grass);
+  buildTallGrass(scene, time);
   buildPlants(scene, time);
   const parts = buildStructures(scene);
   const atmos = buildAtmos(scene, env);
@@ -22,6 +23,7 @@ export function createWorld(canvas) {
     const glow = Math.max(0, p.night - 0.05);
     parts.winMat.emissiveIntensity = glow * 0.75;
     parts.lamp.intensity = glow * 4.5;
+    parts.interior.roomLight.intensity = 1.2 + glow * 3;
   });
 
   const sunView = new THREE.Vector3();
@@ -39,5 +41,5 @@ export function createWorld(canvas) {
     circles: [...plantColliders, ...circleColliders],
     boxes: boxColliders,
   };
-  return { env, scene, camera, tier, parts, dewMat: atmos.dewMat, colliders, update, resize: env.resize };
+  return { env, scene, camera, tier, parts, PLAYER, dewMat: atmos.dewMat, colliders, update, resize: env.resize };
 }

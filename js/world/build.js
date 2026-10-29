@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { srand, srange, TAU, tex, surface, std, mesh, cutoutDepth, contactShadow } from './util.js';
-import { L } from './layout.js?v=18';
+import { L } from './layout.js?v=31';
 
 /* Everything made by hand: the thatched hut, the brushwood fence and gate,
    the vegetable bed, the bean field and the tools. */
@@ -72,14 +72,12 @@ function hut(scene) {
   box(2.2 - DW, TOP - FL, T, wall, (DW / 2 + (2.2 - DW) / 4), FL + H / 2, FZ, g).scale.x = 0.5;
   box(DW, TOP - DH, T, wall, 0, (DH + TOP) / 2, FZ, g);
   box(DW + 0.2, 0.12, 0.24, wood, 0, DH, FZ, g);
-  mesh(new THREE.PlaneGeometry(2.2, H), winMat, 0, FL + H / 2, FZ - 0.9, g, { cast: false });
   const doorL = new THREE.Group(), doorR = new THREE.Group();
   doorL.position.set(-DW / 2, FL, FZ - 0.02);
   doorR.position.set(DW / 2, FL, FZ - 0.02);
   box(DW / 2, DH - FL - 0.04, 0.06, darkWood, DW / 4, (DH - FL) / 2, 0, doorL, 0.8);
   box(DW / 2, DH - FL - 0.04, 0.06, darkWood, -DW / 4, (DH - FL) / 2, 0, doorR, 0.8);
-  doorL.rotation.y = -1.1; doorR.rotation.y = 1.1;
-  g.add(doorL, doorR);
+  g.add(doorL, doorR);   // closed until the end of the day; they swing inwards
   // gable roof with a thick thatch
   const pitch = 0.62, over = 1.0, half = d / 2 + over, slabLen = half / Math.cos(pitch), rise = half * Math.tan(pitch);
   const thatchUV = (mat, len) => { const m = mat.clone(); m.map = mat.map.clone(); m.normalMap = mat.normalMap.clone(); [m.map, m.normalMap].forEach(t => { t.repeat.set((w + 1.3) / 2.2, len / 1.6); }); return m; };
@@ -104,7 +102,50 @@ function hut(scene) {
   lamp.position.set(0, 1.6, FZ + 0.4);
   g.add(lamp);
   contactShadow(scene, HX, HZ + 0.2, 5.2, 0.5);
-  boxColliders.push([HX - w / 2 - 0.55, HX + w / 2 + 0.55, HZ - d / 2 - 0.6, HZ + d / 2 + 0.45]);
+  // walls as colliders, with the doorway left open (blocked by the closed door until it opens)
+  const wz0 = HZ + BZ, wz1 = HZ + FZ, t2 = 0.18;
+  boxColliders.push([HX - w / 2 - 0.3, HX + w / 2 + 0.3, wz0 - 0.45, wz0 + t2]);                 // back
+  boxColliders.push([HX - w / 2 - 0.45, HX - w / 2 + t2, wz0 - 0.45, wz1 + 0.15]);                // left
+  boxColliders.push([HX + w / 2 - t2, HX + w / 2 + 0.45, wz0 - 0.45, wz1 + 0.15]);                // right
+  boxColliders.push([HX - w / 2 - 0.45, HX - DW / 2, wz1 - t2, wz1 + 0.15]);                      // front left
+  boxColliders.push([HX + DW / 2, HX + w / 2 + 0.45, wz1 - t2, wz1 + 0.15]);                      // front right
+  const doorBlock = [HX - DW / 2, HX + DW / 2, wz1 - t2, wz1 + 0.15];
+  boxColliders.push(doorBlock);
+
+  // ---- inside: an earthen-floored room lit by an oil lamp
+  box(w - 0.25, 0.03, d - 0.25, surface('wood', { repeat: 1, color: 0x9c8466, roughness: 0.95 }), 0, FL + 0.015, 0, g, 1.0);
+  // low table with an oil lamp
+  const tx = 1.6, tz = -0.75;
+  box(0.95, 0.05, 0.6, wood, tx, FL + 0.42, tz, g);
+  [[-0.4, -0.24], [0.4, -0.24], [-0.4, 0.24], [0.4, 0.24]].forEach(([a, b]) => box(0.05, 0.4, 0.05, wood, tx + a, FL + 0.2, tz + b, g));
+  const lampDish = new THREE.LatheGeometry([[0, 0], [0.07, 0.01], [0.09, 0.04], [0.085, 0.045]].map(([r, y]) => new THREE.Vector2(r, y)), 18);
+  mesh(lampDish, std(0x5a4a3a, { roughness: 0.5 }), tx, FL + 0.45, tz, g);
+  const flame = mesh(new THREE.SphereGeometry(0.018, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffd28a }), tx + 0.05, FL + 0.52, tz, g, { cast: false, receive: false });
+  flame.scale.set(1, 1.8, 1);
+  const roomLight = new THREE.PointLight(0xffb066, 0, 7, 1.6);
+  roomLight.position.set(tx + 0.05, FL + 0.75, tz);
+  g.add(roomLight);
+  // a straw sleeping mat and a folded quilt
+  box(1.9, 0.06, 1.0, std(0xc8b07a, { map: tex('thatch.jpg'), roughness: 1 }), -2.0, FL + 0.03, -0.9, g, 1);
+  box(0.7, 0.12, 0.5, std(0x6e5a4a, { roughness: 1 }), -2.6, FL + 0.12, -1.0, g, 1);
+  // two pegs inside, left of the door, to hang the hoe on
+  [-1.65, -0.95].forEach(px => { const pg = cyl(0.016, 0.016, 0.16, darkWood, px, 1.55, FZ - 0.18, g, 6); pg.rotation.x = Math.PI / 2; });
+  // a stool by the right-hand window
+  cyl(0.17, 0.19, 0.42, wood, 2.2, FL + 0.21, FZ - 0.6, g, 14);
+  // a jar and a shelf so the room does not feel empty
+  box(0.9, 0.04, 0.28, wood, -2.3, 1.55, BZ + 0.25, g);
+  mesh(new THREE.LatheGeometry([[0, 0], [0.1, 0.01], [0.14, 0.12], [0.1, 0.24], [0.07, 0.26]].map(([r, y]) => new THREE.Vector2(r, y)), 14), std(0x5b4636, { roughness: 0.4 }), -2.5, 1.57, BZ + 0.25, g);
+  circleColliders.push([HX + tx, HZ + tz, 0.55]);
+  boxColliders.push([HX - 3.05, HX - 1.0, HZ - 1.45, HZ - 0.35]);
+
+  const toWorld = (x, y, z) => new THREE.Vector3(HX + x, y, HZ + z);
+  const interior = {
+    doors: [doorL, doorR], doorBlock,
+    rack: toWorld(-1.3, 1.55, FZ - 0.2), rackStand: toWorld(-1.3, 0, FZ - 0.95),
+    stool: toWorld(2.2, 0, FZ - 0.6), roomLight, flame,
+    bounds: { x0: HX - w / 2, x1: HX + w / 2, z0: HZ + BZ, z1: HZ + FZ },
+    floor: FL,
+  };
 
   // props around the hut
   const jarG = new THREE.LatheGeometry([[0, 0], [0.28, 0.02], [0.4, 0.25], [0.42, 0.45], [0.36, 0.62], [0.34, 0.66], [0.3, 0.66], [0.3, 0.6]].map(([r, y]) => new THREE.Vector2(r, y)), 24);
@@ -139,7 +180,7 @@ function hut(scene) {
     gg.position.set(x, 2.15, z);
     scene.add(gg);
   });
-  return { winMat, lamp };
+  return { winMat, lamp, interior };
 }
 
 /* ================================================================ fence & gate */

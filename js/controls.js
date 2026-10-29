@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { EYE, PATHS, APPROACH } from './world/layout.js?v=18';
+import { EYE, PATHS, APPROACH, NARROW } from './world/layout.js?v=31';
 
 /* First-person walking, kept simple for people who do not play games:
    - joystick: up/down walks forward/back, left/right turns (not sidestep);
@@ -143,7 +143,7 @@ export function createControls({ camera, canvas, colliders, isWalkable, onTap, o
     if (i < 0) { i = nodes.length; nodes.push([x, z]); edges.set(i, new Set()); }
     return i;
   };
-  PATHS.forEach(line => { for (let i = 0; i < line.length - 1; i++) { const a = nodeId(line[i]), b = nodeId(line[i + 1]); edges.get(a).add(b); edges.get(b).add(a); } });
+  [...PATHS, NARROW].forEach(line => { for (let i = 0; i < line.length - 1; i++) { const a = nodeId(line[i]), b = nodeId(line[i + 1]); edges.get(a).add(b); edges.get(b).add(a); } });
   Object.values(APPROACH).forEach(p => nodeId(p));
   const nearest = (x, z) => nodes.reduce((best, n, i) => (Math.hypot(n[0] - x, n[1] - z) < Math.hypot(nodes[best][0] - x, nodes[best][1] - z) ? i : best), 0);
   function routeTo([tx, tz]) {
@@ -244,7 +244,8 @@ export function createControls({ camera, canvas, colliders, isWalkable, onTap, o
     }
     // crouching (to sow or pull weeds) eases the eye down and back up
     st.crouch += ((st.crouchTarget || 0) - st.crouch) * Math.min(1, dt * 5);
-    camera.position.set(st.x, EYE + st.crouch, st.z);
+    st.floorY = (st.floorY || 0) + ((st.floorTarget || 0) - (st.floorY || 0)) * Math.min(1, dt * 8);
+    camera.position.set(st.x, EYE + st.crouch + st.floorY, st.z);
     camera.rotation.set(st.pitch, st.yaw, 0, 'YXZ');
     return moved;
   }
