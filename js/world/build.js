@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { srand, srange, TAU, tex, surface, std, mesh, cutoutDepth, contactShadow } from './util.js';
-import { L } from './layout.js?v=32';
+import { L } from './layout.js?v=33';
 
 /* Everything made by hand: the thatched hut, the brushwood fence and gate,
    the vegetable bed, the bean field and the tools. */
@@ -125,23 +125,118 @@ function hut(scene) {
   const roomLight = new THREE.PointLight(0xffb066, 0, 7, 1.6);
   roomLight.position.set(tx + 0.05, FL + 0.75, tz);
   g.add(roomLight);
-  // a straw sleeping mat and a folded quilt
-  box(1.9, 0.06, 1.0, std(0xc8b07a, { map: tex('thatch.jpg'), roughness: 1 }), -2.0, FL + 0.03, -0.9, g, 1);
-  box(0.7, 0.12, 0.5, std(0x6e5a4a, { roughness: 1 }), -2.6, FL + 0.12, -1.0, g, 1);
-  // two pegs inside, left of the door, to hang the hoe on
-  [-1.65, -0.95].forEach(px => { const pg = cyl(0.016, 0.016, 0.16, darkWood, px, 1.55, FZ - 0.18, g, 6); pg.rotation.x = Math.PI / 2; });
+  // ---- a room someone lives in: bed, stove, water jar, wine, books and a stringless qin
+  const lathe = (pts, seg = 16) => new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(r, y)), seg);
+  const clay = std(0x6b4a34, { roughness: 0.45 }), glaze = std(0x3b2f27, { roughness: 0.25 }), celadon = std(0x8fa58c, { roughness: 0.3 });
+  const cloth = std(0x34435e, { roughness: 1 }), linen = std(0xd9cdb4, { roughness: 1 }), straw = std(0xc8b07a, { map: tex('thatch.jpg'), roughness: 1 });
+  const iron = std(0x2a2826, { roughness: 0.55, metalness: 0.6 }), brick = surface('earthwall', { repeat: 1, color: 0xb59c86, roughness: 1 });
+  const paper = std(0xe9dfc6, { roughness: 1 });
+
+  // a low wooden bed (榻) against the back wall, straw mat, indigo quilt, a ceramic pillow
+  const BX = -2.3, BZb = BZ + 0.6;
+  box(1.95, 0.08, 1.0, wood, BX, FL + 0.38, BZb, g);
+  [[-0.9, -0.42], [0.9, -0.42], [-0.9, 0.42], [0.9, 0.42]].forEach(([a, b]) => box(0.08, 0.34, 0.08, darkWood, BX + a, FL + 0.17, BZb + b, g));
+  box(1.85, 0.03, 0.92, straw, BX, FL + 0.435, BZb, g, 1);
+  box(0.75, 0.1, 0.8, cloth, BX + 0.45, FL + 0.5, BZb, g, 1);                 // quilt, folded at the foot
+  box(0.7, 0.05, 0.75, cloth, BX + 0.45, FL + 0.575, BZb + 0.02, g, 1);
+  box(0.32, 0.12, 0.16, celadon, BX - 0.7, FL + 0.51, BZb - 0.2, g, 1);       // pillow
+  boxColliders.push([HX + BX - 1.05, HX + BX + 1.05, HZ + BZb - 0.6, HZ + BZb + 0.6]);
+  // shelf above the bed: bowls, a jar, a bundle of thread-bound books
+  box(0.9, 0.04, 0.28, wood, -2.3, 1.55, BZ + 0.25, g);
+  mesh(lathe([[0, 0], [0.1, 0.01], [0.14, 0.12], [0.1, 0.24], [0.07, 0.26]], 14), clay, -2.6, 1.57, BZ + 0.25, g);
+  [-2.25, -2.1].forEach((x, i) => mesh(lathe([[0, 0], [0.04, 0], [0.08, 0.05], [0.085, 0.06]], 14), i ? celadon : glaze, x, 1.57 + i * 0.06, BZ + 0.25, g));
+  [0, 1, 2].forEach(i => box(0.22, 0.03, 0.16, i % 2 ? linen : std(0x8a6a48, { roughness: 1 }), -1.95, 1.585 + i * 0.03, BZ + 0.26, g, 1));
+
+  // the earthen stove (灶) in the back-right corner, an iron wok with a wooden lid, a chimney
+  const SX = 2.55, SZ = BZ + 0.5;
+  box(1.2, 0.72, 0.75, brick, SX, FL + 0.36, SZ, g, 0.9);
+  mesh(new THREE.CircleGeometry(0.22, 18), std(0x0d0a08), SX - 0.2, FL + 0.27, SZ + 0.376, g, { cast: false });   // fire mouth
+  const ember = mesh(new THREE.CircleGeometry(0.13, 14), new THREE.MeshBasicMaterial({ color: 0xff6a20 }), SX - 0.2, FL + 0.21, SZ + 0.378, g, { cast: false, receive: false });
+  const wok = mesh(new THREE.SphereGeometry(0.3, 18, 8, 0, TAU, Math.PI / 2, Math.PI / 2), iron, SX - 0.15, FL + 0.74, SZ, g);
+  wok.scale.y = 0.5;
+  mesh(new THREE.SphereGeometry(0.29, 18, 6, 0, TAU, 0, Math.PI / 2), wood, SX - 0.15, FL + 0.72, SZ, g).scale.y = 0.22;   // lid
+  cyl(0.11, 0.13, TOP - FL - 0.7 + 1.6, brick, SX + 0.4, FL + 0.72 + (TOP - FL - 0.7 + 1.6) / 2, SZ - 0.15, g, 10);      // chimney through the roof
+  boxColliders.push([HX + SX - 0.7, HX + SX + 0.75, HZ + SZ - 0.45, HZ + SZ + 0.45]);
+  // firewood beside the stove, a basket of vegetables
+  for (let i = 0; i < 7; i++) { const l = cyl(0.04, 0.04, 0.6, twig, SX - 0.85 + (i % 4) * 0.09, FL + 0.05 + Math.floor(i / 4) * 0.08, SZ + 0.15, g, 6); l.rotation.x = Math.PI / 2; }
+  mesh(lathe([[0, 0], [0.15, 0.01], [0.2, 0.1], [0.21, 0.18]], 16), std(0xa58a5c, { roughness: 1, side: THREE.DoubleSide }), 1.55, FL, BZ + 0.35, g);
+  [[0.05, 0], [-0.06, 0.04], [0.02, -0.07]].forEach(([a, b], i) => mesh(new THREE.SphereGeometry(0.06, 10, 8), std(i ? 0x6f8a3c : 0xa4482c, { roughness: 0.6 }), 1.55 + a, FL + 0.16, BZ + 0.35 + b, g));
+  // garlic and dried peppers hanging from the beam near the stove
+  [1.85, 2.0, 2.15].forEach((x, i) => {
+    cyl(0.004, 0.004, 0.7, twig, x, TOP - 0.35, BZ + 0.3, g, 3);
+    for (let k = 0; k < 4; k++) mesh(new THREE.SphereGeometry(0.035, 8, 6), std(i === 1 ? 0x9a2c1c : 0xe6dcc6, { roughness: 0.7 }), x + (k % 2 ? 0.02 : -0.02), TOP - 0.55 - k * 0.09, BZ + 0.3, g, { cast: false });
+  });
+  // a big water jar with a gourd ladle, by the right wall
+  mesh(lathe([[0, 0], [0.2, 0.01], [0.3, 0.2], [0.3, 0.45], [0.26, 0.6], [0.27, 0.62]], 20), clay, w / 2 - 0.45, FL, 0.15, g);
+  const jw = mesh(new THREE.CircleGeometry(0.25, 20), std(0x1a2b2a, { roughness: 0.05 }), w / 2 - 0.45, FL + 0.56, 0.15, g, { cast: false });
+  jw.rotation.x = -Math.PI / 2;
+  mesh(new THREE.SphereGeometry(0.06, 10, 8), std(0xb59a52, { roughness: 0.6 }), w / 2 - 0.4, FL + 0.6, 0.12, g);
+  circleColliders.push([HX + w / 2 - 0.45, HZ + 0.15, 0.35]);
+
+  // on the table: a teapot and two cups, an open book
+  mesh(lathe([[0, 0], [0.06, 0], [0.08, 0.04], [0.075, 0.08], [0.03, 0.1], [0.012, 0.12]], 16), glaze, tx - 0.25, FL + 0.445, tz - 0.1, g);
+  [[-0.05, 0.12], [0.08, 0.15]].forEach(([a, b]) => mesh(lathe([[0, 0], [0.025, 0], [0.035, 0.04]], 12), celadon, tx + a, FL + 0.445, tz + b, g));
+  [-1, 1].forEach(sd => { const pg = box(0.15, 0.012, 0.21, paper, tx + 0.25 + sd * 0.075, FL + 0.452, tz - 0.05, g, 1); pg.rotation.z = sd * -0.06; });
+  // a stringless qin on a low stand by the back wall (蓄素琴一張，弦徽不具)
+  const qin = new THREE.Group();
+  box(1.2, 0.05, 0.19, std(0x2b1a12, { roughness: 0.35 }), 0, 0.33, 0, qin, 1);
+  [-0.45, 0.45].forEach(x => box(0.06, 0.3, 0.2, darkWood, x, 0.15, 0, qin));
+  qin.position.set(0.05, FL, BZ + 0.35);
+  g.add(qin);
+  // and a wine jar under a red cloth
+  mesh(lathe([[0, 0], [0.13, 0.01], [0.2, 0.15], [0.19, 0.3], [0.09, 0.4], [0.08, 0.44]], 18), glaze, 0.95, FL, BZ + 0.35, g);
+  mesh(new THREE.SphereGeometry(0.1, 12, 6, 0, TAU, 0, Math.PI / 2), std(0x8e2a1e, { roughness: 1 }), 0.95, FL + 0.43, BZ + 0.35, g).scale.y = 0.5;
+  // a hanging scroll above the qin
+  const scrollTex = (() => {
+    const c = document.createElement('canvas'); c.width = 128; c.height = 512; const x = c.getContext('2d');
+    x.fillStyle = '#ece2c8'; x.fillRect(0, 0, 128, 512);
+    x.fillStyle = '#221a14'; x.font = '84px "Noto Serif TC", "Songti TC", "PMingLiU", serif'; x.textAlign = 'center';
+    ['歸', '去', '來', '兮'].forEach((ch, i) => x.fillText(ch, 64, 110 + i * 105));
+    x.fillStyle = '#a3291c'; x.fillRect(84, 462, 22, 22);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+  })();
+  mesh(new THREE.PlaneGeometry(0.42, 1.25), new THREE.MeshStandardMaterial({ map: scrollTex, roughness: 1 }), 0.05, 1.75, BZ + T / 2 + 0.012, g, { cast: false });
+  cyl(0.015, 0.015, 0.5, darkWood, 0.05, 1.12, BZ + T / 2 + 0.03, g, 6).rotation.z = Math.PI / 2;
+
+  // the tool wall: the left-hand wall as you come in. A rack board with pegs, straw hat and rain cape,
+  // a sickle; the hoe's two pegs are empty. Built facing -z, then turned to face into the room (+x).
+  const tw = new THREE.Group();
+  tw.position.set(-w / 2 + T / 2 + 0.02, 0, 0.6);
+  tw.rotation.y = -Math.PI / 2;
+  g.add(tw);
+  box(2.0, 0.1, 0.04, darkWood, 0, 1.8, -0.02, tw);                       // the board, above the pegs
+  [-0.95, -0.35, 0.35, 0.95].forEach(px => {
+    box(0.07, 0.34, 0.035, darkWood, px, 1.62, -0.02, tw);               // a slat down from the board
+    const pg = cyl(0.02, 0.02, 0.2, darkWood, px, 1.52, -0.12, tw, 6); pg.rotation.x = Math.PI / 2 - 0.25;   // peg, tipped up
+  });
+  const hat = mesh(new THREE.ConeGeometry(0.32, 0.16, 20, 1, true), std(0xc8ad74, { map: tex('thatch.jpg'), roughness: 1, side: THREE.DoubleSide }), -0.95, 1.45, -0.14, tw);
+  hat.rotation.x = Math.PI / 2.2;
+  const cape = mesh(new THREE.ConeGeometry(0.34, 0.9, 14, 1, true, Math.PI * 0.15, Math.PI * 0.7), std(0x8a7448, { map: tex('thatch.jpg'), roughness: 1, side: THREE.DoubleSide }), 0.95, 1.05, -0.14, tw);
+  cape.rotation.y = Math.PI;
+  const sickle = new THREE.Group();
+  cyl(0.014, 0.014, 0.3, wood, 0, 0, 0, sickle, 6);
+  mesh(new THREE.TorusGeometry(0.11, 0.012, 4, 14, Math.PI * 0.9), iron, 0.1, 0.15, 0, sickle);
+  sickle.position.set(0.68, 1.38, -0.05);
+  sickle.rotation.z = 0.3;
+  tw.add(sickle);
+  mesh(lathe([[0, 0], [0.16, 0.01], [0.22, 0.16], [0.23, 0.24]], 16), std(0xa58a5c, { roughness: 1, side: THREE.DoubleSide }), -0.95, FL, -0.3, tw);
+  // a clickable panel over the rack (the hoe's outline is shown by the story when it is time to hang it)
+  const rackHit = mesh(new THREE.BoxGeometry(2.0, 1.0, 0.5), new THREE.MeshBasicMaterial({ visible: false }), 0, 1.5, -0.25, tw, { cast: false, receive: false });
+  // a broom in the far corner
+  const broom = new THREE.Group();
+  cyl(0.014, 0.014, 1.2, wood, 0, 0.75, 0, broom, 6);
+  cyl(0.02, 0.13, 0.35, straw, 0, 0.17, 0, broom, 10);
+  broom.position.set(w / 2 - 0.25, FL, FZ - 0.35); broom.rotation.z = -0.12;
+  g.add(broom);
   // a stool by the right-hand window
   cyl(0.17, 0.19, 0.42, wood, 2.2, FL + 0.21, FZ - 0.6, g, 14);
-  // a jar and a shelf so the room does not feel empty
-  box(0.9, 0.04, 0.28, wood, -2.3, 1.55, BZ + 0.25, g);
-  mesh(new THREE.LatheGeometry([[0, 0], [0.1, 0.01], [0.14, 0.12], [0.1, 0.24], [0.07, 0.26]].map(([r, y]) => new THREE.Vector2(r, y)), 14), std(0x5b4636, { roughness: 0.4 }), -2.5, 1.57, BZ + 0.25, g);
   circleColliders.push([HX + tx, HZ + tz, 0.55]);
-  boxColliders.push([HX - 3.05, HX - 1.0, HZ - 1.45, HZ - 0.35]);
+  boxColliders.push([HX - 0.65, HX + 1.2, HZ + BZ, HZ + BZ + 0.65]);   // qin and wine jar
 
   const toWorld = (x, y, z) => new THREE.Vector3(HX + x, y, HZ + z);
   const interior = {
     doors: [doorL, doorR], doorBlock,
-    rack: toWorld(-1.3, 1.55, FZ - 0.2), rackStand: toWorld(-1.3, 0, FZ - 0.95),
+    rack: toWorld(-w / 2 + 0.2, 1.55, 0.6), rackStand: toWorld(-w / 2 + 1.05, 0, 0.6), rackHit, ember,
     stool: toWorld(2.2, 0, FZ - 0.6), roomLight, flame,
     bounds: { x0: HX - w / 2, x1: HX + w / 2, z0: HZ + BZ, z1: HZ + FZ },
     floor: FL,

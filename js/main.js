@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import { parseCSV } from './csv.js?v=16';
-import { createWorld } from './world/index.js?v=32';
-import { createControls } from './controls.js?v=32';
-import { audioInit, setScape, oneShot, waterSound, toggleSound, chime } from './audio.js?v=32';
-import { L, PATHS, APPROACH, EYE, NARROW, NARROW_Z0 } from './world/layout.js?v=32';
-import { pathDist, narrowDist, grassDensity } from './world/grass.js?v=32';
-import { ENV, MOON_DIR } from './world/env.js?v=32';
+import { createWorld } from './world/index.js?v=33';
+import { createControls } from './controls.js?v=33';
+import { audioInit, setScape, oneShot, waterSound, toggleSound, chime } from './audio.js?v=33';
+import { L, PATHS, APPROACH, EYE, NARROW, NARROW_Z0 } from './world/layout.js?v=33';
+import { pathDist, narrowDist, grassDensity } from './world/grass.js?v=33';
+import { ENV, MOON_DIR } from './world/env.js?v=33';
 
 /* =====================================================================
    STATE AND EVENT LOG
@@ -1277,8 +1277,23 @@ const BEHAVIOURS = {
     target.approach = [I.rackStand.x, I.rackStand.z];
     setTask(a.name, a.task_2);
     setSteps(STEPS, 1);
-    await offer([{ id: 'rack', pos: V(I.rack.x, 0, I.rack.z - 0.3), ringY: 0.37, labelY: 1.9, reach: 1.6, label: '掛上鋤頭' }]);
-    await putDown(parts.hoe, V(I.rack.x - 0.7, I.rack.y + 0.04, I.rack.z), [0, 0, -Math.PI / 2], 0.9);
+    // show exactly where it goes: a glowing outline of the hoe across the two empty pegs
+    const hangP = V(I.rack.x + 0.1, I.rack.y + 0.02, I.rack.z - 0.7), hangR = [Math.PI / 2, 0, 0];   // across the two middle pegs
+    const ghostMat = new THREE.MeshBasicMaterial({ color: 0xffd98a, transparent: true, opacity: 0.5, depthWrite: false, blending: THREE.AdditiveBlending });
+    const ghost = parts.hoe.clone(true);
+    ghost.traverse(n => { if (n.isMesh) { n.material = ghostMat; n.castShadow = false; } });
+    scene.attach(ghost);
+    ghost.position.copy(hangP);
+    ghost.rotation.set(...hangR);
+    ghost.scale.setScalar(1.03);
+    const pulse = (dt, t) => { ghostMat.opacity = 0.45 + 0.3 * Math.sin(performance.now() / 300); };
+    hooks.add(pulse);
+    coach('rack', '鋤頭掛哪裡', ['進門後往左轉：左邊牆上，斗笠和蓑衣中間那排木釘', '發亮的鋤頭輪廓就是它的位置', '點一下牆上的木架（或輪廓），或走近按右下角的按鈕']);
+    await offer([{ id: 'rack', obj: [I.rackHit, ghost], pos: V(I.rack.x + 0.45, 0, I.rack.z), ringY: 0.37, labelY: 1.9, reach: 2.2, label: '掛上鋤頭' }]);
+    hooks.delete(pulse);
+    scene.remove(ghost);
+    hideCoach();
+    await putDown(parts.hoe, hangP, hangR, 0.9);
     oneShot('pick');
     setHeld('');
     // sit by the window
