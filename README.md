@@ -104,7 +104,7 @@ data/questions.csv     前測與後測題目
 
 | 欄位 | 說明 |
 | --- | --- |
-| `id` | 題目代號（`relax_pre`、`ros_pre_1`…、`prs_1`…） |
+| `id` | 題目代號（`relax_pre`、`ros_post_1`…、`prs_1`…） |
 | `phase` | `pre`＝開始前，`post`＝結束後 |
 | `page` | 同一頁的題目放在一起：`now`＝此刻的狀態，`place`＝對園子的知覺 |
 | `scale`、`subscale` | 量表與分量表，結果頁依此計算平均 |
@@ -117,7 +117,7 @@ data/questions.csv     前測與後測題目
 
 測量分三層，各對應一組題目：
 
-1. **恢復結果**（使用者有沒有恢復）：恢復結果量表 Restoration Outcome Scale（ROS；Korpela, Ylén, Tyrväinen & Silvennoinen, 2008, *Health & Place*, 14(4)），6 題、1–7 分，內容涵蓋放鬆與平靜、注意力恢復、思緒清晰。**前後測各一次**，看變化量。
+1. **恢復結果**（使用者有沒有恢復）：恢復結果量表 Restoration Outcome Scale（ROS；Korpela, Ylén, Tyrväinen & Silvennoinen, 2008, *Health & Place*, 14(4)），6 題、1–7 分，內容涵蓋放鬆與平靜、注意力恢復、思緒清晰。依原量表的用法，**只在活動結束後施測**（原量表問的是造訪之後的感受）。開始前只問一題「此刻你有多放鬆」作為基準，避免一進來就要填一堆問卷。
 2. **環境的恢復性知覺**（這個虛擬園子像不像一個具恢復性的環境）：知覺恢復量表 Perceived Restorativeness Scale（PRS；Hartig, Korpela, Evans & Gärling, 1997），依注意力恢復理論的四個成分：遠離（5 題）、吸引（8 題）、一致（4 題，皆反向題）、相容（5 題），0–6 分；原量表另有 4 題「易讀性」題目，非四個成分，未納入。只在後測問。
 3. **過程**：每一段之後的單題放鬆自評（0–10），加上走動軌跡、停留時間、看月亮花多久等行為紀錄。
 

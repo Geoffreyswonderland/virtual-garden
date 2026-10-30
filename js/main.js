@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import { parseCSV } from './csv.js?v=16';
-import { createWorld } from './world/index.js?v=35';
-import { createControls } from './controls.js?v=35';
-import { audioInit, setScape, oneShot, waterSound, toggleSound, chime } from './audio.js?v=35';
-import { L, PATHS, APPROACH, EYE, NARROW, NARROW_Z0, NARROW_Z1 } from './world/layout.js?v=35';
-import { pathDist, narrowDist, grassDensity } from './world/grass.js?v=35';
-import { ENV, MOON_DIR } from './world/env.js?v=35';
+import { createWorld } from './world/index.js?v=36';
+import { createControls } from './controls.js?v=36';
+import { audioInit, setScape, oneShot, waterSound, toggleSound, chime } from './audio.js?v=36';
+import { L, PATHS, APPROACH, EYE, NARROW, NARROW_Z0, NARROW_Z1 } from './world/layout.js?v=36';
+import { pathDist, narrowDist, grassDensity } from './world/grass.js?v=36';
+import { ENV, MOON_DIR } from './world/env.js?v=36';
 
 /* =====================================================================
    STATE AND EVENT LOG
@@ -1299,7 +1299,7 @@ function endingPoem() {
     quicker and calmer than a slider, and every point of the original scale is visible. */
 const PAGE_META = {
   pre_now: { eyebrow: '開始之前', title: '此刻的你', lede: '先記下你現在的狀態，等一下結束時會再問一次同樣的題目。沒有對錯，憑當下的感覺就好。' },
-  post_now: { eyebrow: '回到現實之前・1／2', title: '此刻的你', lede: '和開始前同樣的題目，請依照現在的感覺回答。' },
+  post_now: { eyebrow: '回到現實之前・1／2', title: '此刻的你', lede: '剛才那一天過完了。下面每一句話，有多符合你現在的感覺？沒有對錯。' },
   post_place: { eyebrow: '回到現實之前・2／2', title: '剛才的園子', lede: '請回想剛才在園子裡的體驗，下面每一句話有多符合你的感受？「這裡」指的是剛才的園子。' },
 };
 function questionPages(questions, phase) {
@@ -1388,9 +1388,9 @@ async function runSession() {
 
   const pre = state.questions.filter(q => q.phase === 'pre');
   const post = state.questions.filter(q => q.phase === 'post');
-  $('#hud').hidden = true;
-  await askPages(pre, 'pre');
-  $('#hud').hidden = false;
+  // only one gentle question before the day starts: the baseline for the relaxation curve
+  if (pre.length === 1) await askRating(pre[0], '開始之前');
+  else if (pre.length) { $('#hud').hidden = true; await askPages(pre, 'pre'); $('#hud').hidden = false; }
 
   const from = DEBUG ? Number(new URLSearchParams(location.search).get('from') || 0) : 0;
   if (from > 0) { state.gateOpen = true; parts.gate[0].rotation.y = 1.65; parts.gate[1].rotation.y = -1.65; controls.place(0, -5.6, 0, 0); }
@@ -1480,8 +1480,8 @@ function showResult() {
 
   // questionnaire scores: ROS before → after, PRS subscale means (reverse-keyed items flipped)
   const f1 = v => (v === null ? '—' : v.toFixed(1));
-  const rosPre = scaleMean(q => q.scale === 'ROS' && q.phase === 'pre'), rosPost = scaleMean(q => q.scale === 'ROS' && q.phase === 'post');
-  const extra = [['恢復感 ROS（1–7）', `${f1(rosPre)} → ${f1(rosPost)}`]];
+  const rosPost = scaleMean(q => q.scale === 'ROS' && q.phase === 'post');
+  const extra = [['恢復感 ROS（1–7）', f1(rosPost)]];
   [...new Set(state.questions.filter(q => q.scale === 'PRS').map(q => q.subscale))].forEach(sub => extra.push([`${sub}（PRS 0–6）`, f1(scaleMean(q => q.scale === 'PRS' && q.subscale === sub))]));
   const lingerMs = Number((state.log.find(e => e.type === 'linger') || {}).value || 0);
   const main = state.poems.filter(p => p.group === 'main'), ex = state.poems.filter(p => p.group === 'explore');

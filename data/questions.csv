@@ -1,11 +1,5 @@
 id,phase,page,scale,subscale,text,min,max,min_label,max_label,reverse,source
 relax_pre,pre,now,放鬆,放鬆自評,此刻你有多放鬆？,0,10,完全不放鬆,非常放鬆,0,單題即時自評（每段之後重複測量，概念同生態瞬時評量 EMA）
-ros_pre_1,pre,now,ROS,恢復感,我覺得平靜。,1,7,完全不是,完全是,0,"Korpela, Ylén, Tyrväinen & Silvennoinen (2008) Restoration Outcome Scale, Health & Place 14(4)"
-ros_pre_2,pre,now,ROS,恢復感,我對日常的事情有熱情、有活力。,1,7,完全不是,完全是,0,"Korpela, Ylén, Tyrväinen & Silvennoinen (2008) Restoration Outcome Scale, Health & Place 14(4)"
-ros_pre_3,pre,now,ROS,恢復感,我覺得恢復了精神，很放鬆。,1,7,完全不是,完全是,0,"Korpela, Ylén, Tyrväinen & Silvennoinen (2008) Restoration Outcome Scale, Health & Place 14(4)"
-ros_pre_4,pre,now,ROS,恢復感,我能好好專心，頭腦清醒。,1,7,完全不是,完全是,0,"Korpela, Ylén, Tyrväinen & Silvennoinen (2008) Restoration Outcome Scale, Health & Place 14(4)"
-ros_pre_5,pre,now,ROS,恢復感,我能忘掉日常的煩惱。,1,7,完全不是,完全是,0,"Korpela, Ylén, Tyrväinen & Silvennoinen (2008) Restoration Outcome Scale, Health & Place 14(4)"
-ros_pre_6,pre,now,ROS,恢復感,我的思緒很清晰。,1,7,完全不是,完全是,0,"Korpela, Ylén, Tyrväinen & Silvennoinen (2008) Restoration Outcome Scale, Health & Place 14(4)"
 relax_post,post,now,放鬆,放鬆自評,此刻你有多放鬆？,0,10,完全不放鬆,非常放鬆,0,單題即時自評（每段之後重複測量，概念同生態瞬時評量 EMA）
 ros_post_1,post,now,ROS,恢復感,我覺得平靜。,1,7,完全不是,完全是,0,"Korpela, Ylén, Tyrväinen & Silvennoinen (2008) Restoration Outcome Scale, Health & Place 14(4)"
 ros_post_2,post,now,ROS,恢復感,我對日常的事情有熱情、有活力。,1,7,完全不是,完全是,0,"Korpela, Ylén, Tyrväinen & Silvennoinen (2008) Restoration Outcome Scale, Health & Place 14(4)"
