@@ -1,17 +1,17 @@
 import * as THREE from 'three';
-import { createEnv, pickTier } from './env.js?v=34';
-import { buildTerrain } from './terrain.js?v=34';
-import { buildGrass, buildTallGrass, PLAYER } from './grass.js?v=34';
-import { buildPlants, updatePlants, plantColliders, FOLIAGE } from './plants.js?v=34';
-import { buildStructures, boxColliders, circleColliders } from './build.js?v=34';
-import { buildAtmos } from './atmos.js?v=34';
+import { createEnv, pickTier } from './env.js?v=35';
+import { buildTerrain } from './terrain.js?v=35';
+import { buildGrass, buildTallGrass, PLAYER } from './grass.js?v=35';
+import { buildPlants, updatePlants, plantColliders, FOLIAGE } from './plants.js?v=35';
+import { buildStructures, boxColliders, circleColliders } from './build.js?v=35';
+import { buildAtmos } from './atmos.js?v=35';
 
 export function createWorld(canvas) {
   const tier = pickTier();
   const env = createEnv(canvas, tier);
   const { scene, camera, time } = env;
   buildTerrain(scene);
-  buildGrass(scene, time, env.tier.grass);
+  buildGrass(scene, time, Math.round(env.tier.grass * 1.25));   // the meadow now reaches out to the bean field
   buildTallGrass(scene, time);
   buildPlants(scene, time);
   const parts = buildStructures(scene);

@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import { parseCSV } from './csv.js?v=16';
-import { createWorld } from './world/index.js?v=34';
-import { createControls } from './controls.js?v=34';
-import { audioInit, setScape, oneShot, waterSound, toggleSound, chime } from './audio.js?v=34';
-import { L, PATHS, APPROACH, EYE, NARROW, NARROW_Z0, NARROW_Z1 } from './world/layout.js?v=34';
-import { pathDist, narrowDist, grassDensity } from './world/grass.js?v=34';
-import { ENV, MOON_DIR } from './world/env.js?v=34';
+import { createWorld } from './world/index.js?v=35';
+import { createControls } from './controls.js?v=35';
+import { audioInit, setScape, oneShot, waterSound, toggleSound, chime } from './audio.js?v=35';
+import { L, PATHS, APPROACH, EYE, NARROW, NARROW_Z0, NARROW_Z1 } from './world/layout.js?v=35';
+import { pathDist, narrowDist, grassDensity } from './world/grass.js?v=35';
+import { ENV, MOON_DIR } from './world/env.js?v=35';
 
 /* =====================================================================
    STATE AND EVENT LOG
@@ -39,6 +39,10 @@ function isWalkable(x, z) {
   if (x > lane.x0 && x < lane.x1 && z > lane.z0 && z < lane.z1) return true;
   if (!state.gateOpen) return false;
   if (Math.abs(x) < gate.half - 0.12 && z > fence.z1 - 0.6 && z < fence.z1 + 0.6) return true;
+  // the back gate, and the footpath and bean field beyond it
+  const bg = L.backGate, b = L.beans;
+  if (Math.abs(x - bg.x) < bg.half - 0.1 && z > fence.z0 - 0.6 && z < fence.z0 + 0.6) return true;
+  if (x > b.x - b.w / 2 - 1.6 && x < b.x + b.w / 2 + 1.6 && z > b.z - b.d / 2 - 0.8 && z < fence.z0 - 0.35) return true;
   return x > fence.x0 + 0.4 && x < fence.x1 - 0.4 && z > fence.z0 + 0.4 && z < fence.z1 - 0.35;
 }
 const controls = createControls({
@@ -627,6 +631,7 @@ window.addEventListener('blur', endHold);
 // pressing on the thing itself starts the hold too
 canvas.addEventListener('pointerdown', e => {
   if (!controls.enabled || !offers.some(o => o.hold)) return;
+  if (state.weeding && touchSeedling(e.clientX, e.clientY)) return;
   const it = pickOffer(e.clientX, e.clientY);
   if (it && it.hold && !it.global && flat(it.pos, controls.st.x, controls.st.z) <= (it.reach || 2.2) * 1.3) startHold(it, 'touch');
 });
@@ -636,6 +641,24 @@ function pickOffer(cx, cy) {
   const objs = offers.filter(o => o.obj).flatMap(o => (Array.isArray(o.obj) ? o.obj : [o.obj]));
   const hit = objs.length ? raycaster.intersectObjects(objs, true)[0] : null;
   return hit ? offers.find(o => o.obj && (Array.isArray(o.obj) ? o.obj : [o.obj]).some(g => { for (let n = hit.object; n; n = n.parent) if (n === g) return true; return false; })) : null;
+}
+/** while weeding: did this press land on a bean seedling (nearer than any weed)? It sways, and is left alone. */
+let seedTouches = 0, seedToastAt = 0;
+function touchSeedling(cx, cy) {
+  const r = canvas.getBoundingClientRect();
+  raycaster.setFromCamera(new THREE.Vector2(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1), camera);
+  const sh = raycaster.intersectObjects(parts.seedlings, true).find(h => h.object.userData.seedling);
+  if (!sh || sh.distance > 6) return false;
+  const objs = offers.filter(o => o.obj).flatMap(o => (Array.isArray(o.obj) ? o.obj : [o.obj]));
+  const wh = objs.length ? raycaster.intersectObjects(objs, true)[0] : null;
+  if (wh && wh.distance < sh.distance) return false;
+  const g = sh.object.parent, i = parts.seedlings.indexOf(g);
+  seedTouches++;
+  log('seedling_touch', String(i), seedTouches);
+  const r0 = g.rotation.z;
+  tw(0.8, k => { g.rotation.z = r0 + Math.sin(k * Math.PI * 4) * 0.18 * (1 - k); });
+  if (performance.now() - seedToastAt > 2500) { seedToastAt = performance.now(); toast('這是豆苗，留著它；旁邊葉子細長、亂長的才是雜草'); }
+  return true;
 }
 /** a free spot within reach of a thing, as close to the player as possible */
 function approachPoint(item) {
@@ -664,6 +687,7 @@ let carryTap = null;   // set while a pulled weed is in hand: a tap chooses wher
 function handleTap(cx, cy) {
   if (!controls.enabled) return;
   if (carryTap && carryTap(cx, cy)) return;
+  if (state.weeding && touchSeedling(cx, cy)) return;
   // 1. something we can use?
   const item = pickOffer(cx, cy);
   if (item) {
@@ -765,7 +789,7 @@ dropRing.rotation.x = -Math.PI / 2;
 dropRing.visible = false;
 scene.add(dropRing);
 const DROP_REACH = 4.5;   // close enough to toss it in
-function inBed(x, z) { const b = L.veg; return Math.abs(x - b.x) < b.w / 2 + 0.2 && Math.abs(z - b.z) < b.d / 2 + 0.2; }
+function inBed(x, z) { const b = L.beans; return Math.abs(x - b.x) < b.w / 2 + 0.2 && Math.abs(z - b.z) < b.d / 2 + 0.2; }
 function spotAt(cx, cy) {
   const r = canvas.getBoundingClientRect();
   raycaster.setFromCamera(new THREE.Vector2(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1), camera);
@@ -884,6 +908,8 @@ function placeWeed(w, src) {
   });
 }
 
+const HOE_SHOULDER_R = [-0.35, 0.15, -0.55];
+const HOE_SHOULDER_P = V(0.42, -0.95, -0.3), HOE_SHOULDER_Q = new THREE.Quaternion().setFromEuler(new THREE.Euler(...HOE_SHOULDER_R));
 const BEHAVIOURS = {
   /* 序：久在樊籠裡，復得返自然 */
   async gate(a) {
@@ -903,55 +929,87 @@ const BEHAVIOURS = {
     await wait(1500);
   },
 
-  /* 晨：晨興理荒穢 */
+  /* 晨：種豆南山下，草盛豆苗稀；晨興理荒穢 — take the hoe, go out the back gate to the field under the
+     south mountain, and weed among the thin bean seedlings until noon */
   async weeds(a) {
-    const center = V(L.veg.x, 0.3, L.veg.z);
-    setTarget(center, 'veg');
     walkMode(true);
+    const STEPS = ['拿起鋤頭', '到南山下的豆田', '拔草'];
+    const B = L.beans;
+    const inField = (x, z, pad = 0) => Math.abs(x - B.x) < B.w / 2 + pad && Math.abs(z - B.z) < B.d / 2 + pad;
+    // 1. the hoe leaning on the woodpile
+    const hoeAt = parts.hoe.position.clone().setY(0);
+    setTarget(hoeAt.clone().setY(0.8), 'hoe');
+    setTask(a.name, a.task);
+    setSteps(STEPS, 0);
+    await offer([{ id: 'hoe', obj: parts.hoe, pos: hoeAt, reach: 2.2, label: '扛起鋤頭' }]);
+    oneShot('pick');
+    await hold(parts.hoe, HOE_SHOULDER_P, HOE_SHOULDER_R, 0.9);
+    setHeld('鋤頭');
+    log('interact', 'hoe', 'morning');
+    // 2. out of the back gate, along the footpath, to the field
+    setTarget(V(B.x, 0.8, B.z + B.d / 2), 'beans');
+    setTask(a.name, a.task_2);
+    setSteps(STEPS, 1);
+    coach('out', '豆田在哪裡', ['豆田不在院子裡，在屋後柴門外、南山腳下', '從草屋右邊繞到屋後，穿過後面的小門，沿小路往山的方向走', '迷路了就點右上角的「帶我過去」']);
+    await new Promise(resolve => {
+      const h = () => { if (inField(controls.st.x, controls.st.z, 0.6)) { hooks.delete(h); resolve(); } };
+      hooks.add(h);
+    });
+    hideCoach();
+    log('arrive', 'field');
+    verse('m1', 'field');          // 種豆南山下
+    verse('m2', 'field');          // 草盛豆苗稀
+    // stand the hoe in the ground at the edge of the field: weeding is done by hand
+    const hs = V(L.hoeSpot[0], 0.03, L.hoeSpot[1]);
+    await putDown(parts.hoe, hs, [0.05, 0.4, 0.06], 0.7);
+    oneShot('stepDirt', 1.1);
+    setHeld('');
+    // 3. pull the weeds; the sun climbs as you work
     let pulled = 0;
     const total = parts.weeds.length;
-    // point out the basket before anything else
+    state.weeding = true;
     state.basketHint = true;
     basketLabel.visible = true;
-    coach('weed', '怎麼拔草', ['走到菜圃前，站到發亮的圈圈旁（圈圈變綠就是夠近了）', '按住草、按住右下角的「按住拔草」，或按住空白鍵', '草會先抖動鬆開，圓環滿了才會連根拔起', '拔起來後，把草丟進菜圃前的竹簍']);
+    setTarget(null);
+    coach('weed', '怎麼拔草', ['草和豆苗長在一起：豆苗矮、葉子圓，雜草葉子細長、亂長', '站近雜草（圈圈變綠），按住草、按住右下角按鈕或空白鍵', '圓環滿了才會連根拔起；拔起來後丟進田邊的竹簍', '別拔到豆苗']);
     while (pulled < total) {
-      setTask(a.name, `${a.task}（${pulled} / ${total}）　按住草，把它連根拔起`);
+      setTask(a.name, `${a.task_3}（${pulled} / ${total}）`);
+      setSteps(STEPS, 2);
       const left = parts.weeds.filter(w => !w.userData.pulled);
       const item = await offer(left.map(w => ({
         id: 'weed', tag: parts.weeds.indexOf(w), obj: w, pos: w.position, reach: 1.5, label: '按住拔草',
         hold: 1.3, holdHint: '要按住草不放，才拔得起來', tooShort: '根還抓著土，再按久一點',
-        // the weed resists: it trembles and lifts a little as you pull
         onProgress: (p, t) => {
           const y0 = w.userData.y0;
           w.position.y = y0 + p * p * 0.1;
           w.rotation.x = Math.sin(t * 38) * 0.06 * p;
           w.rotation.z = Math.sin(t * 31 + 1) * 0.06 * p;
         },
-        onHold: on => { if (on) oneShot('pull', 0.5); controls.st.crouchTarget = on ? -0.6 : 0; },
+        onHold: on => { if (on) { oneShot('pull', 0.5); hideCoach(); } controls.st.crouchTarget = on ? -0.6 : 0; },
       })));
       const w = item.obj;
       w.userData.pulled = true;
-      if (pulled === 0) { beacon.visible = false; verse('m3', 'first_weed'); }
+      if (pulled === 0) verse('m3', 'first_weed');      // 晨興理荒穢
       oneShot('pull');
       burst(w.position);
       const where = await placeWeed(w, holdSt.lastSrc);
       pulled++;
       log('weed_drop', String(item.tag), where);
-      if (pulled < total) { setTarget(center, 'veg'); beacon.visible = false; }
+      env.mixEnv('morning', 'noon', pulled / total);
     }
-    setTask(a.name, `${a.task}（${total} / ${total}）`);
-    setTarget(null);
+    state.weeding = false;
+    log('seedling_touch_total', a.id, seedTouches);
+    setTask(a.name, `${a.task_3}（${total} / ${total}）`);
+    setSteps(STEPS, 3);
     state.basketHint = false;
     basketLabel.visible = false;
     await wait(1500);
   },
 
-  /* 午：種豆南山下 — dig, drop three beans, cover with soil, put the hoe away, water */
-  async sow(a) {
+  /* 午後：補種 — with the weeds gone, the gaps show (豆苗稀): dig, drop three beans, cover; the sun goes down */
+  async replant(a) {
     walkMode(true);
     const S = parts.spots, rowC = S[1].pos.clone();
-    // the hoe rests on the shoulder, and swings down while digging or covering
-    const SHOULDER_P = V(0.42, -0.95, -0.3), SHOULDER_Q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.35, 0.15, -0.55));
     const pose = { mode: 'none', at: rowC, strikes: 0 }, tmpQ = new THREE.Quaternion();
     const hoeHook = (dt, t) => {
       if (pose.mode === 'chop') {
@@ -962,31 +1020,35 @@ const BEHAVIOURS = {
         const n = Math.floor((ph + Math.PI) / (Math.PI * 2));
         if (n !== pose.strikes) { pose.strikes = n; oneShot('stepDirt', 1.3); burst(pose.at); }
       } else if (pose.mode === 'shoulder') {
-        parts.hoe.position.lerp(SHOULDER_P, Math.min(1, dt * 6));
-        parts.hoe.quaternion.slerp(SHOULDER_Q, Math.min(1, dt * 6));
+        parts.hoe.position.lerp(HOE_SHOULDER_P, Math.min(1, dt * 6));
+        parts.hoe.quaternion.slerp(HOE_SHOULDER_Q, Math.min(1, dt * 6));
       }
     };
     const chop = spot => on => { pose.mode = on ? 'chop' : 'shoulder'; pose.at = spot.pos; if (on) hideCoach(); };
     const count = (txt, n) => `${txt}（${n} / ${S.length}）`;
-    const STEPS = ['拿鋤頭', '挖洞', '拿種子袋', '放豆子', '蓋土', '插好鋤頭', '澆水'];
-    const fieldHook = () => { const b = L.beans; if (Math.abs(controls.st.x - b.x) < b.w / 2 && Math.abs(controls.st.z - b.z) < b.d / 2) { verse('m2', 'field'); hooks.delete(fieldHook); } };
-    hooks.add(fieldHook);
+    const STEPS = ['拿起鋤頭', '挖開空缺', '拿種子袋', '放入豆子', '蓋土'];
     const step = i => setSteps(STEPS, i);
+    // the afternoon passes with the work: noon → dusk over ten small jobs
+    let done = 0;
+    const UNITS = S.length * 3 + 1;
+    const tick = () => { done++; env.mixEnv('noon', 'dusk', Math.min(1, done / UNITS)); };
+    S.forEach(sp => { sp.stick.visible = true; });
 
-    // 1. the hoe
-    setTarget(parts.hoe.position.clone().setY(0.8), 'pouch');
+    // 1. the hoe from the edge of the field
+    setTarget(parts.hoe.position.clone().setY(0.8), null);
+    target.approach = approachPoint({ pos: parts.hoe.position, reach: 1.4 }) || target.approach;
     setTask(a.name, a.task);
     step(0);
-    await offer([{ id: 'hoe', obj: parts.hoe, pos: parts.hoe.position.clone(), reach: 2.2, label: '拿起鋤頭' }]);
+    await offer([{ id: 'hoe', obj: parts.hoe, pos: parts.hoe.position.clone().setY(0), reach: 2.2, label: '拿起鋤頭' }]);
     oneShot('pick');
-    await hold(parts.hoe, SHOULDER_P, [-0.35, 0.15, -0.55], 0.9);
+    await hold(parts.hoe, HOE_SHOULDER_P, HOE_SHOULDER_R, 0.9);
     pose.mode = 'shoulder';
     hooks.add(hoeHook);
     setHeld('鋤頭');
 
-    // 2. dig three holes where the twigs are
+    // 2. dig open the three gaps marked with twigs
     setTarget(rowC, 'beans');
-    coach('dig', '怎麼用鋤頭挖洞', ['走進豆田，站到發亮的圈圈旁邊（圈圈變綠就是夠近了）', '按住右下角的「按住挖洞」、按住圈圈，或按住空白鍵', '鋤頭會一下一下挖下去；按到圓環滿了，洞就挖好了', '三個圈圈都挖好，就會進到下一步']);
+    coach('dig', '在缺苗的地方挖洞', ['田壟上插著小枝的地方，就是豆子沒長出來的空缺', '站到圈圈旁（變綠就夠近了），按住右下角的「按住挖洞」、按住圈圈或空白鍵', '鋤頭會一下一下挖下去，圓環滿了洞就挖好了']);
     for (let n = 0; n < S.length; n++) {
       setTask(a.name, count(a.task_2, n));
       step(1);
@@ -997,12 +1059,12 @@ const BEHAVIOURS = {
         onProgress: p => { sp.hole.scale.setScalar(Math.max(0.001, p)); sp.pile.scale.y = Math.max(0.001, p * 0.9); sp.stick.visible = p < 0.5; },
       })));
       S[item.tag].dug = true;
-      verse('m2', 'field');
       pose.mode = 'shoulder';
       if (n === 0) beacon.visible = false;
+      tick();
     }
 
-    // 3. the seed pouch, 4. three beans in each hole
+    // 3. the seed pouch on the stump, 4. three beans in each hole
     setTarget(V(L.pouch[0], 0.6, L.pouch[1]), 'pouch');
     setTask(a.name, a.task_3);
     step(2);
@@ -1012,17 +1074,16 @@ const BEHAVIOURS = {
     const pouchHome = parts.pouch.position.clone();
     await hold(parts.pouch, V(-0.36, -0.44, -0.72), [0.3, 0, -0.2]);
     setHeld('鋤頭、種子袋');
+    tick();
     setTarget(rowC, 'beans');
     beacon.visible = false;
-    coach('sow', '怎麼放豆子', ['走到剛挖好的洞旁邊，要站得很近（圈圈變綠）', '點一下洞，或按右下角的「放入豆子」', '會蹲下來，把三顆豆子放進洞裡', '三個洞都要一個一個走過去放']);
+    coach('sow', '怎麼放豆子', ['走到剛挖好的洞旁邊，要站得很近（圈圈變綠）', '點一下洞，或按右下角的「放入豆子」', '會蹲下來，把三顆豆子放進洞裡']);
     for (let n = 0; n < S.length; n++) {
       setTask(a.name, count(a.task_4, n));
       step(3);
       const item = await offer(S.filter(sp => !sp.sown).map(sp => ({ id: 'sow', tag: S.indexOf(sp), obj: sp.hit, pos: sp.pos, reach: 1.0, label: '放入豆子' })));
       const sp = S[item.tag];
       sp.sown = true;
-      verse('m1', 'first_bean');
-      // crouch beside the hole and drop the beans in by hand
       controls.st.crouchTarget = -0.75;
       controls.faceTo(sp.pos.x, sp.pos.y, sp.pos.z, 0.5);
       await wait(550);
@@ -1033,7 +1094,8 @@ const BEHAVIOURS = {
         await tw(0.4, q => { b.position.set(lerp(from.x, to.x, q), lerp(from.y, to.y, q * q) + Math.sin(q * Math.PI) * 0.06, lerp(from.z, to.z, q)); }, q => q);
       }
       controls.st.crouchTarget = 0;
-      controls.faceTo(sp.pos.x + (sp.pos.x - controls.st.x) * 3, 1.0, sp.pos.z + (sp.pos.z - controls.st.z) * 3, 0.6);   // stand up and look ahead again
+      controls.faceTo(sp.pos.x + (sp.pos.x - controls.st.x) * 3, 1.0, sp.pos.z + (sp.pos.z - controls.st.z) * 3, 0.6);
+      tick();
     }
     await putDown(parts.pouch, pouchHome, [0, 0, 0]);
     setHeld('鋤頭');
@@ -1058,133 +1120,63 @@ const BEHAVIOURS = {
       })));
       S[item.tag].covered = true;
       pose.mode = 'shoulder';
+      tick();
     }
-
-    // 6. stand the hoe upright at the edge of the field, to free the hands (picked up again at dusk)
     hideCoach();
-    const hoeSpot = V(S[2].pos.x + 0.75, 0.04, S[2].pos.z + 0.35);   // just past the last mound
-    setTarget(hoeSpot.clone().setY(0.6), null);
-    target.approach = approachPoint({ pos: hoeSpot, reach: 1.4 }) || target.approach;
-    setTask(a.name, a.task_6);
-    step(5);
-    coach('hoe_away', '鋤頭插在哪裡', ['就在剛蓋好的土堆旁邊，地上有發亮的圈圈和光柱', '走近到圈圈變綠', '按右下角的「插好鋤頭」或空白鍵，或點一下圈圈']);
-    const hoeMark = mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.5, 10), new THREE.MeshBasicMaterial({ visible: false }), hoeSpot.x, 0.25, hoeSpot.z, scene);
-    // works from anywhere nearby: the button is always shown in this step, the ring just shows where it will stand
-    await offer([{ id: 'hoe_away', obj: hoeMark, pos: hoeSpot, global: true, reach: 2.4, label: '插好鋤頭' }]);
-    scene.remove(hoeMark);
-    setTarget(null);
+    await wait(600);
     hooks.delete(hoeHook);
-    await putDown(parts.hoe, hoeSpot, [0.04, 0.5, 0.05], 0.7);
-    oneShot('stepDirt', 1.2);
-    setHeld('');
-
-    // 7. dip the ladle in the bucket, carry it to the mounds, and pour on each one
-    setTarget(V(L.bucket[0], 0.4, L.bucket[1]), 'bucket');
-    setTask(a.name, a.task_7);
-    step(6);
-    coach('scoop', '怎麼舀水', ['到田邊的水桶旁（圈圈變綠）', '點一下水桶，或按右下角的「舀水」', '會用水瓢從桶裡舀起一瓢水，拿在手上']);
-    await offer([{ id: 'bucket', obj: parts.bucket, pos: V(L.bucket[0], 0, L.bucket[1]), reach: 2.2, label: '舀水' }]);
-    hideCoach();
-    const ladle = parts.ladle, scoop = ladle.userData.scoop;
-    const ladleHome = ladle.position.clone(), ladleRot = ladle.rotation.clone();
-    const bucketP = V(L.bucket[0], 0, L.bucket[1]);
-    // dip in, come up full
-    await tw(0.5, k => { ladle.position.set(lerp(ladleHome.x, bucketP.x, k), ladleHome.y + Math.sin(k * Math.PI) * 0.12, lerp(ladleHome.z, bucketP.z, k)); });
-    await tw(0.45, k => { ladle.position.y = lerp(0.43, 0.24, k); ladle.rotation.z = lerp(0, 0.5, k); });
-    oneShot('pull', 0.6);
-    scoop.visible = true;
-    scoop.scale.setScalar(1);
-    await tw(0.45, k => { ladle.position.y = lerp(0.24, 0.62, k); ladle.rotation.z = lerp(0.5, 0, k); });
-    const HAND = V(0.24, -0.3, -0.55);
-    await hold(ladle, HAND, [0, 0.3, 0], 0.6);
-    setHeld('一瓢水');
-
-    coach('water', '怎麼澆水', ['拿著水瓢，走到土堆旁（圈圈變綠）', '按住右下角的「按住澆水」或空白鍵，水瓢會傾斜，把水倒在土堆上', '放開就停；三個土堆都澆到變深色，就完成了']);
-    let tilt = 0;
-    const tiltHook = dt => {
-      tilt += ((pour.on ? 1.15 : 0) - tilt) * Math.min(1, dt * 6);
-      ladle.rotation.z = tilt;
-      ladle.position.lerp(pour.on ? V(0.14, -0.22, -0.5) : HAND, Math.min(1, dt * 5));
-      if (pour.on) ladle.getWorldPosition(pour.from);
-    };
-    hooks.add(tiltHook);
-    let left = 1;
-    for (let n = 0; n < S.length; n++) {
-      setTarget(S.find(sp => !sp.watered).pos.clone().setY(0.5), null);
-      target.approach = approachPoint({ pos: target.pos, reach: 1.2 }) || target.approach;
-      setTask(a.name, `走到土堆旁，按住澆水（${n} / ${S.length}）`);
-      const item = await offer(S.filter(sp => !sp.watered).map(sp => ({
-        id: 'water', tag: S.indexOf(sp), obj: sp.hit, pos: sp.pos, reach: 1.2, label: '按住澆水',
-        hold: 1.4, decay: false, holdHint: '走到土堆旁，按住才會倒水',
-        onHold: on => { pour.on = on; pour.to.copy(sp.pos); drops.visible = true; waterSound(on); if (on) { beacon.visible = false; hideCoach(); } },
-        onProgress: p => {
-          sp.wet.material.opacity = p * 0.75;
-          scoop.scale.setScalar(Math.max(0.05, left - p / S.length));
-        },
-      })));
-      const sp = S[item.tag];
-      sp.watered = true;
-      left -= 1 / S.length;
-      pour.on = false; waterSound(false);
-    }
-    await wait(400);
-    hooks.delete(tiltHook);
-    ladle.rotation.z = 0;
-    scoop.visible = false;
-    setTimeout(() => { drops.visible = false; }, 700);
-    setTarget(null);
-    setTask(a.name, '水澆好了，水瓢放回水桶上');
-    await putDown(ladle, ladleHome, [ladleRot.x, ladleRot.y, ladleRot.z]);
-    setHeld('');
+    parts.hoe.position.copy(HOE_SHOULDER_P);
+    parts.hoe.quaternion.copy(HOE_SHOULDER_Q);
     setTarget(null);
     setSteps(STEPS, STEPS.length);
-    setTask(a.name, '豆子種好了。要等上幾天，才會冒出芽來。');
+    setTask(a.name, '補好了。過幾天，空缺的地方就會冒出新芽。');
     await wait(2200);
   },
 
-  /* 暮：帶月荷鋤歸，道狹草木長 — shoulder the hoe and take the short footpath home; the moon rises ahead */
+  /* 暮：帶月荷鋤歸，道狹草木長，夕露沾我衣，衣沾不足惜 — shoulder the hoe and take the footpath home;
+     the moon rises ahead, the tall grass along the path wets the hem */
   async hoe(a) {
     walkMode(true);
-    const STEPS = ['扛起鋤頭', '沿路走回家', '抬頭望月', '走到家門口'];
-    const hoeAt = parts.hoe.position.clone().setY(0);
-    setTarget(hoeAt.clone().setY(0.8), null);
-    target.approach = approachPoint({ pos: hoeAt, reach: 1.6 }) || target.approach;
-    setTask(a.name, a.task);
-    setSteps(STEPS, 0);
-    await offer([{ id: 'hoe', obj: parts.hoe, pos: hoeAt, reach: 2.3, label: '扛起' }]);
-    oneShot('pick');
-    await hold(parts.hoe, V(0.42, -0.95, -0.3), [-0.35, 0.15, -0.55], 1.1);
+    const STEPS = ['荷鋤上肩', '走小路回家', '抬頭望月', '走到家門口'];
+    if (parts.hoe.parent !== camera) await hold(parts.hoe, HOE_SHOULDER_P, HOE_SHOULDER_R, 0.6);
     setHeld('鋤頭');
+    setSteps(STEPS, 1);
     const door = V(L.hut.door[0], 1, L.hut.door[1]);
     setTarget(door, 'door');
-    setTask(a.name, a.task_2);
-    setSteps(STEPS, 1);
-    coach('narrow', '回家的路', ['沿著早上來的路往回走，到園子中間的岔路口，轉向草屋', '通往家門的那一段沒人除草，草長得比人還高，把路擠成窄窄一條；走過時會被你撥開', '天色會越來越暗，月亮會從草屋上方升起來']);
+    setTask(a.name, a.task);
+    coach('narrow', '回家的路', ['沿著早上來的小路往回走，穿過後門，繞過草屋到門口', '小路很窄，兩旁的草比人還高，走過時會被你撥開', '天色會越來越暗，月亮會從家的方向升起來']);
     await state.duskReady;
+    tw(4, k => { W.dewMat.uniforms.strength.value = k; });
     log('walk_home', a.id, 'start');
+    const t0 = now();
     const moonDir = new THREE.Vector3(...MOON_DIR).normalize();
     const ARRIVE = 2.3;
     const d0 = Math.max(ARRIVE + 1, flat(door, controls.st.x, controls.st.z));
     let kMax = 0, nightSound = false, inNarrow = false, moonUp = 0, gaze = 0, held = false;
+    state.wet = 0;
+    const showWet = () => { $('#wet-fill').style.width = `${Math.round(state.wet * 100)}%`; };
     await new Promise(resolve => {
       const h = dt => {
         const { x, z } = controls.st;
         const d = flat(door, x, z);
-        // full night by about two-thirds of the way, so the moon is up while there is still a walk left
-        const k = Math.min(1, Math.max(0, 1 - (d - ARRIVE) / (d0 - ARRIVE)) / 0.65);
+        const k = Math.min(1, Math.max(0, 1 - (d - ARRIVE) / (d0 - ARRIVE)) / 0.6);
         if (k > kMax + 0.002) { kMax = k; env.mixEnv('dusk', 'night', ease(kMax)); }
         if (kMax > 0.5 && !nightSound) { nightSound = true; setScape('night', 8); log('soundscape', 'night'); }
-        if (!inNarrow && z < NARROW_Z0 && z > NARROW_Z1 && narrowDist(x, z) < 0.8) {
-          inNarrow = true;
-          verse('m5', 'narrow');
-          hideCoach();
+        const onPath = z < NARROW_Z0 && z > NARROW_Z1 && narrowDist(x, z) < 0.9;
+        if (!inNarrow && onPath) { inNarrow = true; verse('m5', 'narrow'); hideCoach(); $('#wet').hidden = false; showWet(); }
+        // the tall wet grass brushes the hem as you go (夕露沾我衣)
+        const sp = controls.speed();
+        if (state.wet < 1 && sp > 0.2 && (onPath || grassDensity(x, z) > 0.25)) {
+          state.wet = Math.min(1, state.wet + sp * dt * (onPath ? 0.2 : 0.08));
+          showWet();
+          if (state.wet >= 1) { log('wet', a.id, now() - t0); verse('m6', 'wet'); verse('m7', 'wet'); }
         }
         // the moon: once it is up, look at it for a moment (an arrow at the screen edge shows where)
         if (env.env.night > 0.45 && !state.collected.has('m4')) {
           if (!moonUp) {
             moonUp = performance.now();
             skyTarget = { dir: moonDir, label: '月亮' };
-            setTask(a.name, a.task_3);
+            setTask(a.name, a.task_2);
             setSteps(STEPS, 2);
             toast('月亮升起來了：往上拖曳畫面（或按 R）抬頭看看', 5000);
             log('moon_up', a.id, `${x.toFixed(1)};${z.toFixed(1)}`);
@@ -1192,68 +1184,28 @@ const BEHAVIOURS = {
           camera.getWorldDirection(lookDir);
           if (lookDir.dot(moonDir) > 0.93) {
             gaze += dt;
-            if (gaze > 1.0) { verse('m4', 'moon_gaze'); log('moon_gaze', a.id, Math.round(performance.now() - moonUp)); skyTarget = null; setTask(a.name, a.task_4); setSteps(STEPS, 3); }
+            if (gaze > 1.0) { verse('m4', 'moon_gaze'); log('moon_gaze', a.id, Math.round(performance.now() - moonUp)); skyTarget = null; setTask(a.name, a.task_3); setSteps(STEPS, 3); }
           } else gaze = Math.max(0, gaze - dt * 0.5);
         }
         if (d < ARRIVE) {
-          // don't slip indoors before having seen the moon; after a while, turn the head for them
           if (state.collected.has('m4') || (moonUp && performance.now() - moonUp > 25000)) { hooks.delete(h); resolve(); }
-          else if (!held) { held = true; toast(moonUp ? '先別急著進門，月亮在草屋上方，抬頭看看' : '再等一下，天快黑了', 4500); }
+          else if (!held) { held = true; toast(moonUp ? '先別急著進門，回頭看看月亮' : '再等一下，天快黑了', 4500); }
         } else held = false;
       };
       hooks.add(h);
     });
     log('walk_home', a.id, 'arrived');
+    log('linger', a.id, now() - t0);
     env.setEnv('night', 2);
     if (!nightSound) setScape('night', 4);
-    // make sure both lines were seen, even by someone who took the main path or never looked up
+    // every line is seen, even by someone who never looked up or found another way
     if (!state.collected.has('m5')) verse('m5', 'arrival');
+    if (!state.collected.has('m6')) { state.wet = 1; showWet(); verse('m6', 'arrival'); verse('m7', 'arrival'); }
     if (!state.collected.has('m4')) { controls.faceTo(controls.st.x + moonDir.x * 10, 1.6 + moonDir.y * 10, controls.st.z + moonDir.z * 10, 2.0); await wait(1500); verse('m4', 'arrival'); await wait(2200); }
     skyTarget = null;
     setTarget(null);
     setSteps(STEPS, 4);
     await wait(800);
-  },
-
-  /* 夜：夕露沾我衣，衣沾不足惜 — walk in the dewy grass until the hem is wet, then choose */
-  async dew(a) {
-    walkMode(true);
-    const STEPS = ['走進草地', '衣裳濕了', '回屋'];
-    tw(3.5, k => { W.dewMat.uniforms.strength.value = k; });
-    setTask(a.name, a.task);
-    setSteps(STEPS, 0);
-    coach('dew', '夜裡的露水', ['離開小路，走進院子的草地', '左上角會顯示衣襬沾濕的程度', '想走去哪裡都可以']);
-    const t0 = now(), m0 = controls.st.moved;
-    state.wet = 0;
-    $('#wet').hidden = false;
-    const showWet = () => { $('#wet-fill').style.width = `${Math.round(state.wet * 100)}%`; };
-    showWet();
-    await new Promise(resolve => {
-      const h = dt => {
-        const { x, z } = controls.st, sp = controls.speed();
-        if (sp > 0.2 && grassDensity(x, z) > 0.25) { state.wet = Math.min(1, state.wet + sp * dt * 0.17); showWet(); }
-        if (state.wet >= 1) { hooks.delete(h); resolve(); }
-      };
-      hooks.add(h);
-      // nobody gets stuck here: after a while the dew finds them anyway
-      setTimeout(() => { if (state.wet < 1) { state.wet = 1; showWet(); log('wet', 'timeout'); } }, 90000);
-    });
-    hideCoach();
-    verse('m6', 'wet');
-    log('wet', a.id, now() - t0);
-    setSteps(STEPS, 1);
-    await wait(3000);
-    const c = await choose('', '第五段', a.task_2 || '衣裳濕了……', ['不要緊，再走走', '回屋去']);
-    log('dew_choice', a.id, c === 0 ? 'keep_walking' : 'go_in');
-    walkMode(true);
-    if (c === 0) {
-      verse('m7', 'keep_walking');
-      setTask(a.name, a.task_3);
-      setSteps(STEPS, 2);
-      await offer([{ id: 'go_in', pos: V(L.hut.door[0], 0, L.hut.door[1]), reach: 2.2, label: '回屋' }]);
-    }
-    log('linger', a.id, now() - t0);
-    log('linger_distance', a.id, (controls.st.moved - m0).toFixed(1));
     $('#wet').hidden = true;
   },
 
@@ -1442,6 +1394,11 @@ async function runSession() {
 
   const from = DEBUG ? Number(new URLSearchParams(location.search).get('from') || 0) : 0;
   if (from > 0) { state.gateOpen = true; parts.gate[0].rotation.y = 1.65; parts.gate[1].rotation.y = -1.65; controls.place(0, -5.6, 0, 0); }
+  if (from >= 2) {   // debug: start later in the day, in the field, with the weeding done
+    parts.weeds.forEach(w => { w.userData.pulled = true; w.visible = false; });
+    parts.hoe.position.set(L.hoeSpot[0], 0.03, L.hoeSpot[1]); parts.hoe.rotation.set(0.05, 0.4, 0.06);
+    if (from <= 3) controls.place(6.3, -18.9, Math.PI, 0);
+  }
   for (const [i, a] of state.actions.entries()) {
     if (i < from) continue;
     state.stage = i;
@@ -1452,7 +1409,7 @@ async function runSession() {
       const p = env.setEnv(a.time_of_day, i === from ? 0.01 : (a.time_of_day === 'night' ? 2 : 7));
       if (a.target === 'hoe') state.duskReady = p;
     }
-    if (i === from && (a.target === 'dew' || a.target === 'house')) { setScape('night', 0.5); controls.place(0, -4.8, Math.PI, -0.1); }
+    if (i === from && a.target === 'house') { setScape('night', 0.5); controls.place(0, -4.8, Math.PI, -0.1); }
     await say('旁白', tag, a.narration || a.task || '', '好');
     const run = BEHAVIOURS[a.target];
     if (run) await run(a);
@@ -1497,7 +1454,7 @@ function showResult() {
   </svg>`;
 
   // top-down map: the start is at the bottom, the hut at the top
-  const x0 = -11, x1 = 11, z0 = -13.5, z1 = 16.5, k = 13;
+  const x0 = -11, x1 = 11, z0 = -23, z1 = 16.5, k = 11;
   const MX = x => (x - x0) * k, MZ = z => (z - z0) * k;
   const MW = (x1 - x0) * k, MH = (z1 - z0) * k;
   const rect = (b, fill, stroke) => `<rect x="${MX(b.x - b.w / 2)}" y="${MZ(b.z - b.d / 2)}" width="${b.w * k}" height="${b.d * k}" fill="${fill}" stroke="${stroke}"/>`;
@@ -1507,7 +1464,7 @@ function showResult() {
   const walked = state.trail.reduce((acc, p, i, arr) => acc + (i ? Math.hypot(p[0] - arr[i - 1][0], p[1] - arr[i - 1][1]) : 0), 0);
   $('#pathmap').innerHTML = `<svg viewBox="0 0 ${MW} ${MH}" role="img" aria-label="走動軌跡俯視圖">
     <rect x="${MX(L.fence.x0)}" y="${MZ(L.fence.z0)}" width="${(L.fence.x1 - L.fence.x0) * k}" height="${(L.fence.z1 - L.fence.z0) * k}" fill="rgba(127,174,150,.08)" stroke="rgba(210,183,126,.45)" stroke-dasharray="4 3"/>
-    ${PATHS.map(l => `<polyline points="${l.map(([x, z]) => `${MX(x)},${MZ(z)}`).join(' ')}" fill="none" stroke="rgba(241,233,216,.12)" stroke-width="${0.9 * k}" stroke-linecap="round" stroke-linejoin="round"/>`).join('')}
+    ${[...PATHS, NARROW].map(l => `<polyline points="${l.map(([x, z]) => `${MX(x)},${MZ(z)}`).join(' ')}" fill="none" stroke="rgba(241,233,216,.12)" stroke-width="${0.9 * k}" stroke-linecap="round" stroke-linejoin="round"/>`).join('')}
     ${rect(L.hut, 'rgba(210,183,126,.25)', 'rgba(210,183,126,.6)')}
     ${rect(L.veg, 'rgba(120,90,60,.35)', 'none')}${rect(L.beans, 'rgba(120,90,60,.35)', 'none')}
     <circle cx="${MX(L.pond.x)}" cy="${MZ(L.pond.z)}" r="${L.pond.r * k}" fill="rgba(110,150,170,.3)"/>

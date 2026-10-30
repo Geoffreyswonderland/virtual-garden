@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { srand, srange, TAU, tex, surface, std, cutoutDepth, contactShadow, softDot } from './util.js';
-import { L } from './layout.js?v=34';
+import { L } from './layout.js?v=35';
 
 /* Trees and plants. Branches are tapered tubes grown recursively; crowns
    are leaf cards whose normals point out from the crown centre so the
@@ -270,6 +270,7 @@ export function buildPlants(scene, time) {
   for (let i = 0; i < 26; i++) {
     const side = i % 3, x = side === 0 ? srange(-30, -12) : side === 1 ? srange(12, 30) : srange(-25, 25), z = side === 2 ? srange(-30, -15) : srange(-28, 20);
     if (Math.abs(x) < 6 && z > 9) continue;
+    if (x > -1 && x < 13 && z > -27 && z < -10) continue;   // keep the bean field and its footpath open
     elm(x, z, srange(0.9, 1.5));
   }
   reeds();

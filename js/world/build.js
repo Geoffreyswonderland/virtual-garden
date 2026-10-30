@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { srand, srange, TAU, tex, surface, std, mesh, cutoutDepth, contactShadow } from './util.js';
-import { L } from './layout.js?v=34';
+import { L } from './layout.js?v=35';
 
 /* Everything made by hand: the thatched hut, the brushwood fence and gate,
    the vegetable bed, the bean field and the tools. */
@@ -290,8 +290,9 @@ function fence(scene) {
       stakes.push([x + srange(-0.02, 0.02), z + srange(-0.03, 0.03), srange(1.0, 1.35)]);
     }
   };
+  const bg = L.backGate, bgh = bg.half + 0.05;
   side(x0, z1, x1, z1, (x) => Math.abs(x) < gh);
-  side(x0, z0, x1, z0); side(x0, z0, x0, z1); side(x1, z0, x1, z1);
+  side(x0, z0, x1, z0, (x) => Math.abs(x - bg.x) < bgh); side(x0, z0, x0, z1); side(x1, z0, x1, z1);
   const im = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.022, 0.03, 1, 5).translate(0, 0.5, 0), twig, stakes.length);
   const m = new THREE.Matrix4();
   stakes.forEach(([x, z, h], i) => { m.compose(new THREE.Vector3(x, -0.02, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(srange(-0.07, 0.07), srange(0, TAU), srange(-0.07, 0.07))), new THREE.Vector3(1, h, 1)); im.setMatrixAt(i, m); });
@@ -306,8 +307,12 @@ function fence(scene) {
   };
   [0.32, 0.72].forEach(y => {
     band(x0, z1, -gh, z1, y); band(gh, z1, x1, z1, y);
-    band(x0, z0, x1, z0, y); band(x0, z0, x0, z1, y); band(x1, z0, x1, z1, y);
+    band(x0, z0, bg.x - bgh, z0, y); band(bg.x + bgh, z0, x1, z0, y); band(x0, z0, x0, z1, y); band(x1, z0, x1, z1, y);
   });
+  // the back gate: just an opening between two posts, with a crossbar, out to the fields
+  [-1, 1].forEach(s => cyl(0.06, 0.07, 1.6, darkWood, bg.x + s * (bgh + 0.02), 0.8, z0, scene, 8));
+  const bar = cyl(0.04, 0.04, 2 * bgh + 0.3, darkWood, bg.x, 1.58, z0, scene, 6);
+  bar.rotation.z = Math.PI / 2;
   // gate posts, a little thatched cap and two leaves
   [-1, 1].forEach(s => cyl(0.07, 0.08, 1.95, darkWood, s * (gh + 0.02), 0.97, z1, scene, 10));
   const beam = cyl(0.05, 0.05, 2 * gh + 0.5, darkWood, 0, 1.92, z1, scene, 8);
@@ -408,51 +413,14 @@ function vegBed(scene) {
       l.rotateX(0.2);
     }
   });
-  // weeds to pull (荒穢)
-  const weedTex = tex('weed.png');
-  const weedMat = new THREE.MeshStandardMaterial({ map: weedTex, alphaTest: 0.4, side: THREE.DoubleSide, roughness: 0.9 });
-  const weedDepth = cutoutDepth(weedTex, 0.4);
-  const spots = [[-1.25, -0.1], [-0.75, 0.05], [-0.1, -0.15], [0.3, 0.1], [0.8, -0.05], [1.25, 0.15]];
-  const weeds = spots.map(([dx, dz]) => {
-    const wg = new THREE.Group();
-    wg.position.set(x + dx, 0.15, z + dz);
-    for (let k = 0; k < 3; k++) {
-      const c = mesh(new THREE.PlaneGeometry(0.55, 0.5), weedMat, 0, 0.24, 0, wg, { receive: false });
-      c.rotation.y = k * Math.PI / 3 + srand();
-      c.customDepthMaterial = weedDepth;
-    }
-    // roots, hidden under the soil until the weed is pulled up
+  [[-1.1, -0.05], [-0.35, 0.0], [0.4, -0.05], [1.15, 0.0]].forEach(([dx, dz]) => {
     for (let k = 0; k < 7; k++) {
-      const len = srange(0.12, 0.24);
-      const root = mesh(new THREE.CylinderGeometry(0.002, 0.007, len, 4), rootMat, srange(-0.03, 0.03), -len / 2 + 0.01, srange(-0.03, 0.03), wg, { receive: false });
-      root.rotation.set(srange(-0.6, 0.6), 0, srange(-0.6, 0.6));
+      const a = k * TAU / 7 + srand();
+      const l = mesh(leafG, cab, x + dx + Math.cos(a) * 0.05, 0.16, z + dz + Math.sin(a) * 0.05, scene);
+      l.rotation.set(0, -a, 0.45);
+      l.rotateX(0.2);
     }
-    // a clump of soil around the base comes up with it
-    const clod = mesh(new THREE.SphereGeometry(0.06, 10, 6), soilMat, 0, -0.01, 0, wg, { receive: false });
-    clod.scale.set(1.2, 0.6, 1.2);
-    // an invisible, easier-to-tap volume
-    const hit = mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.6, 8), new THREE.MeshBasicMaterial({ visible: false }), 0, 0.3, 0, wg, { cast: false, receive: false });
-    hit.userData.hit = true;
-    wg.userData.y0 = wg.position.y;
-    scene.add(wg);
-    return wg;
   });
-  // a large bamboo basket by the path, at the near end of the bed, for the pulled weeds
-  const bx = x + w / 2 - 0.2, bz = z - d / 2 - 0.75;   // just in front of the bed, beside where you stand
-  const basket = new THREE.Group();
-  const weave = std(0xc2a56c, { map: tex('thatch.jpg'), roughness: 1, side: THREE.DoubleSide });
-  mesh(new THREE.CylinderGeometry(0.42, 0.3, 0.52, 24, 1, true), weave, 0, 0.26, 0, basket);
-  mesh(new THREE.CircleGeometry(0.3, 20), weave, 0, 0.01, 0, basket).rotation.x = -Math.PI / 2;
-  const rim = mesh(new THREE.TorusGeometry(0.42, 0.025, 8, 28), std(0x8a6f45), 0, 0.52, 0, basket);
-  rim.rotation.x = Math.PI / 2;
-  [0.14, 0.36].forEach(y => { const b = mesh(new THREE.TorusGeometry(0.3 + y * 0.23, 0.015, 6, 28), std(0x9a7d4e), 0, y, 0, basket); b.rotation.x = Math.PI / 2; });
-  // an invisible, generous volume so it is easy to tap
-  mesh(new THREE.CylinderGeometry(0.6, 0.6, 1.1, 12), new THREE.MeshBasicMaterial({ visible: false }), 0, 0.5, 0, basket, { cast: false, receive: false });
-  basket.position.set(bx, 0, bz);
-  scene.add(basket);
-  circleColliders.push([bx, bz, 0.45]);
-  contactShadow(scene, bx, bz, 0.65, 0.6);
-  return { weeds, weedBasket: basket };
 }
 
 /* ================================================================ bean field */
@@ -472,20 +440,44 @@ function beanField(scene) {
   geo.computeVertexNormals();
   mesh(geo, soilMat, x, 0.005, z, scene, { cast: false });
   const rowY = 0.13;
-  // the row where the player sows
-  const sowZ = z + ROWS[2];
-  const holes = [x - 1.6, x - 1.05, x - 0.5].map(hx => new THREE.Vector3(hx, rowY, sowZ));
+  const ridgeH = pz => 0.03 + 0.1 * (0.5 + 0.5 * Math.cos((pz - ROWS[0]) / 0.75 * TAU));
+  // 豆苗稀: the beans came up thinly, with long gaps along the rows
+  const SEED = [[-1.9, 3], [-0.7, 3], [0.9, 3], [2.1, 3], [-2.1, 2], [1.5, 2], [2.2, 2], [-1.6, 1], [0.2, 1], [1.2, 1], [-2.0, 0], [-0.5, 0], [1.8, 0]];
+  const plantLeaf = std(0x5f8f43, { roughness: 0.7, side: THREE.DoubleSide }), stemMat = std(0x5a7f3b);
+  const seedHit = new THREE.MeshBasicMaterial({ visible: false });
+  const seedlings = SEED.map(([dx, r]) => {
+    const pg = new THREE.Group();
+    pg.position.set(x + dx, rowY, z + ROWS[r]);
+    const hgt = srange(0.2, 0.32);
+    cyl(0.007, 0.011, hgt, stemMat, 0, hgt / 2, 0, pg, 5);
+    for (let k = 0; k < 3; k++) {
+      const sy = hgt * (0.5 + k * 0.25);
+      for (let j = 0; j < 3; j++) {
+        const a = j * TAU / 3 + k;
+        const lf = mesh(new THREE.SphereGeometry(0.045, 8, 5), plantLeaf, Math.cos(a) * 0.045, sy, Math.sin(a) * 0.045, pg);
+        lf.scale.set(1.3, 0.18, 0.8); lf.rotation.y = -a;
+      }
+    }
+    // an invisible volume, so a tap on a seedling can be told apart from a tap on a weed
+    mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.4, 8), seedHit, 0, 0.2, 0, pg, { cast: false, receive: false }).userData.seedling = true;
+    pg.rotation.y = srand() * TAU;
+    scene.add(pg);
+    return pg;
+  });
+
+  // the gaps where beans did not come up: dug, re-sown and covered in the afternoon (補種)
+  const holes = [-1.4, -0.4, 0.6].map(dx => new THREE.Vector3(x + dx, rowY, z + ROWS[2]));
   const holeMat = std(0x1f150d, { roughness: 1 });
   const beanMat = std(0xc89a62, { roughness: 0.5 });
   const wetMat = new THREE.MeshStandardMaterial({ color: 0x1a110a, roughness: 0.45, transparent: true, opacity: 0, depthWrite: false });
   const spots = holes.map(h => {
-    // a twig marks where each hole should go
+    // a twig marks each gap (shown when it is time to re-sow)
     const stick = cyl(0.006, 0.008, 0.22, darkWood, h.x + 0.1, rowY + 0.09, h.z - 0.08, scene, 4);
     stick.rotation.z = 0.15;
+    stick.visible = false;
     const hole = mesh(new THREE.CircleGeometry(0.095, 18), holeMat, h.x, rowY + 0.005, h.z, scene, { cast: false });
     hole.rotation.x = -Math.PI / 2;
     hole.scale.setScalar(0.001);
-    // the soil dug out piles up beside the hole, and goes back over the beans
     const pile = mesh(new THREE.SphereGeometry(0.1, 12, 8, 0, TAU, 0, Math.PI / 2), soilMat, h.x + 0.16, rowY - 0.005, h.z + 0.02, scene, { receive: true });
     pile.scale.set(1.1, 0.001, 0.9);
     const mound = mesh(new THREE.SphereGeometry(0.085, 12, 8, 0, TAU, 0, Math.PI / 2), soilMat, h.x, rowY - 0.01, h.z, scene);
@@ -498,27 +490,53 @@ function beanField(scene) {
     hit.userData.hit = true;
     return { pos: h, stick, hole, pile, mound, wet, seeds, hit };
   });
-  // the few bean plants already growing (豆苗稀)
-  const plantLeaf = std(0x5f8f43, { roughness: 0.7, side: THREE.DoubleSide });
-  [[0.6, 0], [1.4, 0], [-0.4, 1], [1.7, 1], [0.2, 3], [1.1, 3], [-1.3, 3]].forEach(([dx, r]) => {
-    const pg = new THREE.Group();
-    pg.position.set(x + dx, rowY, z + ROWS[r]);
-    const hgt = srange(0.25, 0.4);
-    cyl(0.008, 0.012, hgt, std(0x5a7f3b), 0, hgt / 2, 0, pg, 5);
+
+  // 草盛: weeds crowding the seedlings, in the three rows nearest the path (荒穢, pulled from morning to noon)
+  const weedTex = tex('weed.png');
+  const weedMat = new THREE.MeshStandardMaterial({ map: weedTex, alphaTest: 0.4, side: THREE.DoubleSide, roughness: 0.9 });
+  const weedDepth = cutoutDepth(weedTex, 0.4);
+  const WEEDS = [[-2.35, 0.75], [-1.3, 1.125], [0.1, 0.75], [1.5, 1.1], [-0.9, 0.0], [1.0, 0.0], [-0.6, -0.75]];
+  const weeds = WEEDS.map(([dx, dz]) => {
+    const wg = new THREE.Group();
+    wg.position.set(x + dx, ridgeH(dz) + 0.005, z + dz);
+    const sc = srange(0.85, 1.1);
     for (let k = 0; k < 3; k++) {
-      const sy = hgt * (0.5 + k * 0.25);
-      for (let j = 0; j < 3; j++) {
-        const a = j * TAU / 3 + k;
-        const lf = mesh(new THREE.SphereGeometry(0.05, 8, 5), plantLeaf, Math.cos(a) * 0.05, sy, Math.sin(a) * 0.05, pg);
-        lf.scale.set(1.3, 0.18, 0.8); lf.rotation.y = -a;
-      }
+      const c = mesh(new THREE.PlaneGeometry(0.5 * sc, 0.46 * sc), weedMat, 0, 0.22 * sc, 0, wg, { receive: false });
+      c.rotation.y = k * Math.PI / 3 + srand();
+      c.customDepthMaterial = weedDepth;
     }
-    pg.rotation.y = srand() * TAU;
-    scene.add(pg);
+    for (let k = 0; k < 7; k++) {
+      const len = srange(0.12, 0.24);
+      const root = mesh(new THREE.CylinderGeometry(0.002, 0.007, len, 4), rootMat, srange(-0.03, 0.03), -len / 2 + 0.01, srange(-0.03, 0.03), wg, { receive: false });
+      root.rotation.set(srange(-0.6, 0.6), 0, srange(-0.6, 0.6));
+    }
+    const clod = mesh(new THREE.SphereGeometry(0.06, 10, 6), soilMat, 0, -0.01, 0, wg, { receive: false });
+    clod.scale.set(1.2, 0.6, 1.2);
+    const hit = mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.55, 8), new THREE.MeshBasicMaterial({ visible: false }), 0, 0.27, 0, wg, { cast: false, receive: false });
+    hit.userData.hit = true;
+    wg.userData.y0 = wg.position.y;
+    scene.add(wg);
+    return wg;
   });
+
+  // a big bamboo basket at the field's edge, beside where the footpath comes in, for the pulled weeds
+  const bx = x - 0.9, bz = z + d / 2 + 0.45;
+  const basket = new THREE.Group();
+  const weave = std(0xc2a56c, { map: tex('thatch.jpg'), roughness: 1, side: THREE.DoubleSide });
+  mesh(new THREE.CylinderGeometry(0.42, 0.3, 0.52, 24, 1, true), weave, 0, 0.26, 0, basket);
+  mesh(new THREE.CircleGeometry(0.3, 20), weave, 0, 0.01, 0, basket).rotation.x = -Math.PI / 2;
+  const rim = mesh(new THREE.TorusGeometry(0.42, 0.025, 8, 28), std(0x8a6f45), 0, 0.52, 0, basket);
+  rim.rotation.x = Math.PI / 2;
+  [0.14, 0.36].forEach(y => { const b = mesh(new THREE.TorusGeometry(0.3 + y * 0.23, 0.015, 6, 28), std(0x9a7d4e), 0, y, 0, basket); b.rotation.x = Math.PI / 2; });
+  mesh(new THREE.CylinderGeometry(0.6, 0.6, 1.1, 12), new THREE.MeshBasicMaterial({ visible: false }), 0, 0.5, 0, basket, { cast: false, receive: false });
+  basket.position.set(bx, 0, bz);
+  scene.add(basket);
+  circleColliders.push([bx, bz, 0.45]);
+  contactShadow(scene, bx, bz, 0.65, 0.6);
+
   const fieldHit = mesh(new THREE.BoxGeometry(w, 0.3, d), new THREE.MeshBasicMaterial({ visible: false }), x, 0.12, z, scene, { cast: false, receive: false });
   fieldHit.userData.hit = true;
-  return { holes, spots, fieldHit, rowY };
+  return { holes, spots, fieldHit, rowY, seedlings, weeds, weedBasket: basket };
 }
 
 /* ================================================================ tools */
@@ -567,19 +585,16 @@ function tools(scene) {
   ladle.rotation.y = 0.6;
   scene.add(ladle);
 
-  // a short post at the far corner of the field, where the hoe is left after work
   const [hx, hz] = L.hoe;
-  const hoePost = cyl(0.06, 0.07, 1.0, darkWood, hx + 0.12, 0.5, hz + 0.05, scene, 8);
-  circleColliders.push([hx + 0.12, hz + 0.05, 0.3]);
   const hoe = new THREE.Group();
   cyl(0.017, 0.021, 1.45, std(0xa1825a, { roughness: 0.8 }), 0, 0.72, 0, hoe, 8);
   const blade = box(0.2, 0.16, 0.014, std(0x5c5852, { roughness: 0.45, metalness: 0.65 }), 0, 1.42, 0.1, hoe, 1);
   blade.rotation.x = 1.2;
-  // in the morning it leans against the stump, beside the seed pouch
-  hoe.position.set(px + 0.3, 0, pz - 0.05);
-  hoe.rotation.set(0.0, 0.4, 0.2);
+  // in the morning it leans against the woodpile under the eave
+  hoe.position.set(hx, 0, hz);
+  hoe.rotation.set(-0.28, 0.3, 0.0);
   scene.add(hoe);
-  return { pouch, bucket, ladle, hoe, hoePost: new THREE.Vector3(hx, 0, hz) };
+  return { pouch, bucket, ladle, hoe };
 }
 
 /* ================================================================ pond */
@@ -611,9 +626,9 @@ export function buildStructures(scene) {
   const hutParts = hut(scene);
   const gate = fence(scene);
   eastFence(scene);
-  const { weeds, weedBasket } = vegBed(scene);
+  vegBed(scene);
   const field = beanField(scene);
   const t = tools(scene);
   const water = pond(scene);
-  return { ...hutParts, gate, weeds, weedBasket, ...field, ...t, water };
+  return { ...hutParts, gate, ...field, ...t, water };
 }

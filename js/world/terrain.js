@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { tex, fbm, smooth } from './util.js';
-import { L, PATHS, NARROW } from './layout.js?v=34';
+import { L, PATHS, NARROW } from './layout.js?v=35';
 
 /* Ground: one large plane, flat around the homestead and rolling further
    out. Grass, packed earth and tilled soil are blended in the shader from a
@@ -11,8 +11,8 @@ export const MASK = { min: -26, size: 52 };
 
 export function heightAt(x, z) {
   const r = Math.max(Math.abs(x) / 1.0, Math.abs(z - 1) / 1.05);
-  if (r < 20) return 0;
-  return (fbm(x * 0.02 + 3, z * 0.02) - 0.42) * smooth(20, 45, r) * 9 + smooth(60, 260, r) * 14;
+  if (r < 25) return 0;   // flat out to the bean field behind the garden
+  return (fbm(x * 0.02 + 3, z * 0.02) - 0.42) * smooth(25, 50, r) * 9 + smooth(60, 260, r) * 14;
 }
 
 function paintMask() {
@@ -115,6 +115,8 @@ export function buildTerrain(scene) {
         col = mix(col, soil, ms);
         // patchwork fields beyond the fence
         float outside = max(smoothstep(11.0, 13.5, abs(vW.x)), max(smoothstep(-13.0, -15.5, vW.y), smoothstep(17.0, 19.0, vW.y)));
+        outside *= 1.0 - max(md, ms);   // the painted paths and the bean field keep their own ground
+        outside *= 1.0 - smoothstep(4.5, 2.5, length((vW - vec2(5.9, -17.0)) / vec2(1.0, 1.9)));   // and the meadow round the footpath
         vec2 cell = floor(vW / vec2(16.0, 10.0));
         float hsh = fh(cell);
         vec3 fieldCol = mix(vec3(0.33, 0.42, 0.16), vec3(0.55, 0.52, 0.24), step(0.55, hsh));

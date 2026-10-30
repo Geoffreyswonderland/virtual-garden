@@ -22,16 +22,16 @@ export const TIER = {
   high: { dpr: 1.5, shadow: 2048, grass: 110000, samples: 4, rays: 40 },
 };
 
-/* where the moon hangs: ahead of the walk home from the bean field, above the hut's east end,
-   about 42° up — clear of the trees, and of the roof even when standing at the door */
-export const MOON_DIR = [0.12, 0.67, -0.73];
+/* where the moon hangs: ahead of the walk home from the bean field behind the garden (towards +z),
+   about 40° up — over the garden, clear of the hut and the trees all the way to the door */
+export const MOON_DIR = [-0.15, 0.65, 0.745];
 
 /* ---------- time-of-day presets (linear RGB) ---------- */
 export const ENV = {
   morning: { hz: [0.95, 0.84, 0.7], zn: [0.42, 0.56, 0.74], sunCol: [1, 0.8, 0.58], sunDir: [0.42, 0.2, -0.88], light: [1, 0.83, 0.64], lightI: 2.7, sky: [0.82, 0.86, 0.95], gnd: [0.36, 0.32, 0.22], hemiI: 0.55, fog: [0.86, 0.79, 0.68], fogD: 0.021, exp: 0.9, night: 0, cloud: 1, rays: 1 },
   noon: { hz: [0.8, 0.85, 0.88], zn: [0.24, 0.44, 0.78], sunCol: [1, 0.96, 0.88], sunDir: [0.3, 0.88, -0.36], light: [1, 0.97, 0.9], lightI: 3.2, sky: [0.8, 0.86, 0.95], gnd: [0.38, 0.35, 0.24], hemiI: 0.65, fog: [0.78, 0.83, 0.86], fogD: 0.011, exp: 0.78, night: 0, cloud: 1, rays: 0.25 },
   dusk: { hz: [1, 0.6, 0.34], zn: [0.3, 0.32, 0.5], sunCol: [1, 0.48, 0.18], sunDir: [-0.55, 0.06, -0.83], light: [1, 0.58, 0.32], lightI: 2.4, sky: [0.66, 0.56, 0.64], gnd: [0.3, 0.22, 0.16], hemiI: 0.36, fog: [0.85, 0.56, 0.4], fogD: 0.018, exp: 0.95, night: 0.1, cloud: 0.9, rays: 1.3 },
-  night: { hz: [0.07, 0.09, 0.15], zn: [0.01, 0.018, 0.05], sunCol: [0.75, 0.85, 1], sunDir: [0.12, 0.67, -0.73], light: [0.55, 0.66, 1], lightI: 0.55, sky: [0.4, 0.5, 0.8], gnd: [0.1, 0.1, 0.12], hemiI: 0.17, fog: [0.05, 0.07, 0.12], fogD: 0.022, exp: 1.2, night: 1, cloud: 0.25, rays: 0.35 },
+  night: { hz: [0.07, 0.09, 0.15], zn: [0.01, 0.018, 0.05], sunCol: [0.75, 0.85, 1], sunDir: [-0.15, 0.65, 0.745], light: [0.55, 0.66, 1], lightI: 0.55, sky: [0.4, 0.5, 0.8], gnd: [0.1, 0.1, 0.12], hemiI: 0.17, fog: [0.05, 0.07, 0.12], fogD: 0.022, exp: 1.2, night: 1, cloud: 0.25, rays: 0.35 },
 };
 const KEYS = Object.keys(ENV.morning);
 export const blendEnv = (a, b, k) => Object.fromEntries(KEYS.map(key => [key, Array.isArray(a[key]) ? a[key].map((v, i) => lerp(v, b[key][i], k)) : lerp(a[key], b[key], k)]));

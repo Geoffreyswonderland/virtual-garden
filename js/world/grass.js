@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { srand, srange, fbm, TAU } from './util.js';
-import { L, PATHS, NARROW, NARROW_Z0, NARROW_Z1 } from './layout.js?v=34';
+import { L, PATHS, NARROW, NARROW_Z0, NARROW_Z1 } from './layout.js?v=35';
 
 /* Real blades rather than picture cards: each instance is a thin curved
    ribbon, shaded dark at the root and light at the tip, swaying in gusts. */
@@ -34,7 +34,6 @@ export function grassDensity(x, z) {
   if (Math.abs(x - L.hut.x) < L.hut.w / 2 + 0.6 && Math.abs(z - L.hut.z) < L.hut.d / 2 + 0.6) return 0;
   if (Math.abs(z - fence.z1) < 0.18 && Math.abs(x) < 10.2) return 0;
   if (inRect(x, z, L.beans, 0)) {
-    if (Math.abs(z - (L.beans.z + 0.375)) < 0.42) return 0;   // the row to be sown was cleared at dawn
     return 0.18;  // 草盛豆苗稀: weeds between the other rows
   }
   const patch = fbm(x * 0.25 + 7, z * 0.25);
@@ -84,7 +83,7 @@ export function buildGrass(scene, time, count) {
 
   const im = new THREE.InstancedMesh(geo, mat, count);
   const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), c = new THREE.Color(), s = new THREE.Vector3(), p = new THREE.Vector3();
-  const X0 = -13, X1 = 13, Z0 = -14.5, Z1 = 17;
+  const X0 = -13, X1 = 13, Z0 = -24, Z1 = 17;
   let n = 0, guard = 0;
   while (n < count && guard++ < count * 8) {
     const x = srange(X0, X1), z = srange(Z0, Z1);
