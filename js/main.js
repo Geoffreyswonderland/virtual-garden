@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import { parseCSV } from './csv.js?v=16';
-import { createWorld } from './world/index.js?v=38';
-import { createControls } from './controls.js?v=38';
-import { audioInit, setScape, oneShot, waterSound, toggleSound, chime } from './audio.js?v=38';
-import { L, PATHS, APPROACH, EYE, NARROW, NARROW_Z0, NARROW_Z1 } from './world/layout.js?v=38';
-import { pathDist, narrowDist, grassDensity } from './world/grass.js?v=38';
-import { ENV, MOON_DIR } from './world/env.js?v=38';
+import { createWorld } from './world/index.js?v=39';
+import { createControls } from './controls.js?v=39';
+import { audioInit, setScape, oneShot, waterSound, toggleSound, chime } from './audio.js?v=39';
+import { L, PATHS, APPROACH, EYE, NARROW, NARROW_Z0, NARROW_Z1 } from './world/layout.js?v=39';
+import { pathDist, narrowDist, grassDensity } from './world/grass.js?v=39';
+import { ENV, MOON_DIR } from './world/env.js?v=39';
 
 /* =====================================================================
    STATE AND EVENT LOG

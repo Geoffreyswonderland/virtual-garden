@@ -17,9 +17,9 @@ export const L = {
   beans: { x: 5.8, z: -20.6, w: 5.2, d: 3.6 },
   backGate: { x: 5.8, z: -12, half: 0.62 },
   pouch: [3.0, -18.25],                                  // seed pouch on a stump at the field's edge
-  hoeSpot: [7.45, -18.35],                               // where the hoe is stood while weeding by hand
+  hoeSpot: [7.7, -19.15],                                // where the hoe is stood while weeding by hand (inside the field edge, clear of the tall grass)
   bucket: [-3.2, -6.0],                                   // by the water jar, just scenery now
-  hoe: [3.45, -6.62],                                    // in the morning it leans against the woodpile
+  hoe: [0.95, -6.45],                                    // in the morning it leans by the front door, right on the way in
   pond: { x: -6.5, z: -3.4, r: 1.8 },
   eastFence: { x: 9.2, z0: -7, z1: -1.2 },              // 東籬 with chrysanthemums
   woodpile: [3.9, -7.3],
@@ -48,7 +48,7 @@ export const NARROW_Z1 = -18.6;
 export const APPROACH = {
   gate: [0, 11.3],
   veg: [-4.3, 1.5],
-  hoe: [3.6, -5.9],
+  hoe: [0.9, -5.4],
   backGate: [5.8, -11.4],
   narrow: [5.8, -12],
   beans: [6.3, -18.9],

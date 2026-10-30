@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { srand, srange, TAU, tex, surface, std, mesh, cutoutDepth, contactShadow } from './util.js';
-import { L } from './layout.js?v=38';
+import { L } from './layout.js?v=39';
 
 /* Everything made by hand: the thatched hut, the brushwood fence and gate,
    the vegetable bed, the bean field and the tools. */
@@ -519,8 +519,8 @@ function beanField(scene) {
     return wg;
   });
 
-  // a big bamboo basket at the field's edge, beside where the footpath comes in, for the pulled weeds
-  const bx = x - 0.9, bz = z + d / 2 + 0.45;
+  // a big bamboo basket on the near edge of the field, in the open (not in the tall grass), for the pulled weeds
+  const bx = x - w / 2 - 0.55, bz = z + d / 2 - 0.6;   // just off the west end of the field
   const basket = new THREE.Group();
   const weave = std(0xc2a56c, { map: tex('thatch.jpg'), roughness: 1, side: THREE.DoubleSide });
   mesh(new THREE.CylinderGeometry(0.42, 0.3, 0.52, 24, 1, true), weave, 0, 0.26, 0, basket);
@@ -590,9 +590,9 @@ function tools(scene) {
   cyl(0.017, 0.021, 1.45, std(0xa1825a, { roughness: 0.8 }), 0, 0.72, 0, hoe, 8);
   const blade = box(0.2, 0.16, 0.014, std(0x5c5852, { roughness: 0.45, metalness: 0.65 }), 0, 1.42, 0.1, hoe, 1);
   blade.rotation.x = 1.2;
-  // in the morning it leans against the woodpile under the eave
-  hoe.position.set(hx, 0, hz);
-  hoe.rotation.set(-0.28, 0.3, 0.0);
+  // in the morning it leans against the wall beside the front door, standing on the stone base
+  hoe.position.set(hx, 0.34, hz);
+  hoe.rotation.set(-0.2, 0.3, 0.0);
   scene.add(hoe);
   return { pouch, bucket, ladle, hoe };
 }
