@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&family=Noto+Serif+TC:wght@600;900&display=swap">
-<link rel="stylesheet" href="css/style.css?v=31">
+<link rel="stylesheet" href="css/style.css?v=32">
 <script type="importmap">
 { "imports": {
   "three": "./lib/three/three.module.js",
@@ -48,7 +48,7 @@
   </nav>
 
   <div id="stick" aria-label="移動搖桿：上下前進後退，左右轉身"><span class="s-up">前進</span><span class="s-down">後退</span><span class="s-left">↺</span><span class="s-right">↻</span><div id="knob"></div></div>
-  <p id="keys-hint">W／S 前進後退・A／D 轉向・點地面就走過去・拖曳畫面環顧</p>
+  <p id="keys-hint">W／S 前進後退・A／D 轉向・R／F 抬頭低頭・點地面就走過去・拖曳畫面環顧</p>
   <button id="act" type="button" hidden></button>
   <div id="edge" hidden><span class="arrow"></span><span id="edge-dist"></span></div>
   <p id="toast" role="status"></p>
@@ -87,7 +87,7 @@
     <ul class="facts">
       <li><b>走過去</b>：點一下地面，就會走到那裡。</li>
       <li><b>搖桿</b>：往上推前進、往下退後，往左右推是轉身。平板上，左手拇指放在畫面左下任何地方，搖桿就會出現在那裡。</li>
-      <li><b>鍵盤</b>：W／S 或 ↑／↓ 前進後退，A／D 或 ←／→ 轉向，Q／E 側移，按住 Shift 走快一點。</li>
+      <li><b>鍵盤</b>：W／S 或 ↑／↓ 前進後退，A／D 或 ←／→ 轉向，Q／E 側移，R／F 抬頭、低頭，按住 Shift 走快一點。</li>
       <li><b>環顧</b>：在畫面上拖曳。</li>
       <li><b>互動</b>：點東西本身（太遠會自動走過去），或走近後點右下角的圓形按鈕。</li>
       <li><b>迷路了</b>：點右上角任務框裡的「帶我過去」。</li>
@@ -143,6 +143,6 @@
   </div>
 </section>
 
-<script type="module" src="js/main.js?v=31"></script>
+<script type="module" src="js/main.js?v=32"></script>
 </body>
 </html>

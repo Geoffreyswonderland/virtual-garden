@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { EYE, PATHS, APPROACH, NARROW } from './world/layout.js?v=31';
+import { EYE, PATHS, APPROACH, NARROW } from './world/layout.js?v=32';
 
 /* First-person walking, kept simple for people who do not play games:
    - joystick: up/down walks forward/back, left/right turns (not sidestep);
@@ -124,7 +124,7 @@ export function createControls({ camera, canvas, colliders, isWalkable, onTap, o
   canvas.addEventListener('pointercancel', lookEnd);
 
   /* ---------- keys ---------- */
-  const KEYMAP = { KeyW: 'f', ArrowUp: 'f', KeyS: 'b', ArrowDown: 'b', KeyA: 'tl', KeyD: 'tr', ArrowLeft: 'tl', ArrowRight: 'tr', KeyQ: 'l', KeyE: 'r', ShiftLeft: 'run', ShiftRight: 'run' };
+  const KEYMAP = { KeyW: 'f', ArrowUp: 'f', KeyS: 'b', ArrowDown: 'b', KeyA: 'tl', KeyD: 'tr', ArrowLeft: 'tl', ArrowRight: 'tr', KeyQ: 'l', KeyE: 'r', KeyR: 'lu', KeyF: 'ld', PageUp: 'lu', PageDown: 'ld', ShiftLeft: 'run', ShiftRight: 'run' };
   window.addEventListener('keydown', e => {
     const k = KEYMAP[e.code];
     if (!k || (e.target.closest && e.target.closest('input, textarea, select'))) return;
@@ -189,6 +189,8 @@ export function createControls({ camera, canvas, colliders, isWalkable, onTap, o
     if (st.enabled) {
       ix = (st.keys.has('r') ? 1 : 0) - (st.keys.has('l') ? 1 : 0);
       iy = st.stick.y + (st.keys.has('f') ? 1 : 0) - (st.keys.has('b') ? 1 : 0);
+      // R／F（或 PageUp／PageDown）抬頭、低頭
+      if (!st.lookLock && (st.keys.has('lu') || st.keys.has('ld'))) { st.pitch = THREE.MathUtils.clamp(st.pitch + ((st.keys.has('lu') ? 1 : 0) - (st.keys.has('ld') ? 1 : 0)) * 1.1 * dt, -1.1, 0.6); st.turn = null; }
       turnIn = Math.max(-1, Math.min(1, st.stick.x + (st.keys.has('tr') ? 1 : 0) - (st.keys.has('tl') ? 1 : 0)));
       const len = Math.hypot(ix, iy);
       if (len > 1) { ix /= len; iy /= len; }

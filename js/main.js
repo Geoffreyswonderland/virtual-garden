@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import { parseCSV } from './csv.js?v=16';
-import { createWorld } from './world/index.js?v=31';
-import { createControls } from './controls.js?v=31';
-import { audioInit, setScape, oneShot, waterSound, toggleSound, chime } from './audio.js?v=31';
-import { L, PATHS, APPROACH, EYE, NARROW } from './world/layout.js?v=31';
-import { pathDist, narrowDist, grassDensity } from './world/grass.js?v=31';
-import { ENV } from './world/env.js?v=31';
+import { createWorld } from './world/index.js?v=32';
+import { createControls } from './controls.js?v=32';
+import { audioInit, setScape, oneShot, waterSound, toggleSound, chime } from './audio.js?v=32';
+import { L, PATHS, APPROACH, EYE, NARROW, NARROW_Z0 } from './world/layout.js?v=32';
+import { pathDist, narrowDist, grassDensity } from './world/grass.js?v=32';
+import { ENV, MOON_DIR } from './world/env.js?v=32';
 
 /* =====================================================================
    STATE AND EVENT LOG
@@ -71,6 +71,7 @@ const beacon = new THREE.Group();
   beacon.visible = false;
   scene.add(beacon);
 }
+let skyTarget = null;   // a direction in the sky (the moon), shown with the same edge arrow
 let target = null;  // { pos: Vector3, approach: [x,z] }
 function setTarget(pos, approachKey) {
   target = pos ? { pos: pos.clone(), approach: APPROACH[approachKey] || [pos.x, pos.z] } : null;
@@ -696,8 +697,24 @@ function handleTap(cx, cy) {
 
 /* ---------- arrow at the screen edge when the target is out of view ---------- */
 const proj = new THREE.Vector3();
+
 function updateEdge() {
   const el = $('#edge');
+  if (skyTarget && controls.enabled) {
+    proj.copy(camera.position).addScaledVector(skyTarget.dir, 100).project(camera);
+    const behind = proj.z > 1;
+    let { x, y } = proj;
+    if (behind) { x = -x; y = -y; }
+    if (!behind && Math.abs(x) < 0.75 && Math.abs(y) < 0.7) { el.hidden = true; return; }
+    const m = Math.max(Math.abs(x) / 0.88, Math.abs(y) / 0.78, 1e-3);
+    const ex = x / m, ey = y / m;
+    el.hidden = false;
+    el.style.left = `${(ex * 0.5 + 0.5) * innerWidth}px`;
+    el.style.top = `${(-ey * 0.5 + 0.5) * innerHeight}px`;
+    el.querySelector('.arrow').style.transform = `rotate(${Math.atan2(ex, ey)}rad)`;
+    $('#edge-dist').textContent = skyTarget.label;
+    return;
+  }
   if (!target || !controls.enabled) { el.hidden = true; return; }
   proj.set(target.pos.x, 1.2, target.pos.z).project(camera);
   const behind = proj.z > 1;
@@ -1125,10 +1142,10 @@ const BEHAVIOURS = {
     await wait(2200);
   },
 
-  /* 暮：帶月荷鋤歸，道狹草木長 — fetch the hoe, take the narrow path home under the rising moon */
+  /* 暮：帶月荷鋤歸，道狹草木長 — shoulder the hoe and take the short footpath home; the moon rises ahead */
   async hoe(a) {
     walkMode(true);
-    const STEPS = ['扛起鋤頭', '走進小徑', '抬頭望月', '回到家門口'];
+    const STEPS = ['扛起鋤頭', '走草徑回家', '抬頭望月', '走到家門口'];
     const hoeAt = parts.hoe.position.clone().setY(0);
     setTarget(hoeAt.clone().setY(0.8), null);
     target.approach = approachPoint({ pos: hoeAt, reach: 1.6 }) || target.approach;
@@ -1138,39 +1155,51 @@ const BEHAVIOURS = {
     oneShot('pick');
     await hold(parts.hoe, V(0.42, -0.95, -0.3), [-0.35, 0.15, -0.55], 1.1);
     setHeld('鋤頭');
-    setTarget(V(NARROW[0][0], 0.8, NARROW[0][1]), 'narrow');
+    const door = V(L.hut.door[0], 1, L.hut.door[1]);
+    setTarget(door, 'door');
     setTask(a.name, a.task_2);
     setSteps(STEPS, 1);
-    coach('narrow', '回家的路', ['從豆田東北角的小徑進去（光柱的地方）', '小徑很窄，兩旁的草比人還高，走過時會被你撥開', '天色會隨著你走近家門慢慢變暗，月亮升起來時，抬頭看看它']);
+    coach('narrow', '回家的路', ['家就在豆田的西南邊，直接往草屋走就好', '田邊有一條窄窄的小徑，兩旁的草比人還高，走過時會被你撥開', '天色會越來越暗，月亮會從草屋上方升起來']);
     await state.duskReady;
     log('walk_home', a.id, 'start');
-    const door = V(L.hut.door[0], 1, L.hut.door[1]);
-    const moonDir = new THREE.Vector3(...ENV.night.sunDir).normalize();
+    const moonDir = new THREE.Vector3(...MOON_DIR).normalize();
     const ARRIVE = 2.3;
     const d0 = Math.max(ARRIVE + 1, flat(door, controls.st.x, controls.st.z));
-    let kMax = 0, nightSound = false, inNarrow = false, moonHinted = false, gaze = 0;
+    let kMax = 0, nightSound = false, inNarrow = false, moonUp = 0, gaze = 0, held = false;
     await new Promise(resolve => {
       const h = dt => {
         const { x, z } = controls.st;
         const d = flat(door, x, z);
-        const k = Math.min(1, Math.max(0, 1 - (d - ARRIVE) / (d0 - ARRIVE)));
+        // full night by about two-thirds of the way, so the moon is up while there is still a walk left
+        const k = Math.min(1, Math.max(0, 1 - (d - ARRIVE) / (d0 - ARRIVE)) / 0.65);
         if (k > kMax + 0.002) { kMax = k; env.mixEnv('dusk', 'night', ease(kMax)); }
         if (kMax > 0.5 && !nightSound) { nightSound = true; setScape('night', 8); log('soundscape', 'night'); }
-        if (!inNarrow && narrowDist(x, z) < 0.7) {
+        if (!inNarrow && z < NARROW_Z0 && narrowDist(x, z) < 0.8) {
           inNarrow = true;
           verse('m5', 'narrow');
           hideCoach();
-          setTarget(door, 'door');
-          setTask(a.name, a.task_4);
-          setSteps(STEPS, 2);
         }
-        // the moon: once it is up, look at it for a moment
-        if (env.env.night > 0.5 && !state.collected.has('m4')) {
-          if (!moonHinted) { moonHinted = true; toast('月亮升起來了，抬頭看看', 3500); setTask(a.name, `${a.task_3}，再${a.task_4}`); }
+        // the moon: once it is up, look at it for a moment (an arrow at the screen edge shows where)
+        if (env.env.night > 0.45 && !state.collected.has('m4')) {
+          if (!moonUp) {
+            moonUp = performance.now();
+            skyTarget = { dir: moonDir, label: '月亮' };
+            setTask(a.name, a.task_3);
+            setSteps(STEPS, 2);
+            toast('月亮升起來了：往上拖曳畫面（或按 R）抬頭看看', 5000);
+            log('moon_up', a.id, `${x.toFixed(1)};${z.toFixed(1)}`);
+          }
           camera.getWorldDirection(lookDir);
-          if (lookDir.dot(moonDir) > 0.95) { gaze += dt; if (gaze > 1.2) { verse('m4', 'moon_gaze'); setTask(a.name, a.task_4); setSteps(STEPS, 3); } } else gaze = Math.max(0, gaze - dt * 0.5);
+          if (lookDir.dot(moonDir) > 0.93) {
+            gaze += dt;
+            if (gaze > 1.0) { verse('m4', 'moon_gaze'); log('moon_gaze', a.id, Math.round(performance.now() - moonUp)); skyTarget = null; setTask(a.name, a.task_4); setSteps(STEPS, 3); }
+          } else gaze = Math.max(0, gaze - dt * 0.5);
         }
-        if (d < ARRIVE) { hooks.delete(h); resolve(); }
+        if (d < ARRIVE) {
+          // don't slip indoors before having seen the moon; after a while, turn the head for them
+          if (state.collected.has('m4') || (moonUp && performance.now() - moonUp > 25000)) { hooks.delete(h); resolve(); }
+          else if (!held) { held = true; toast(moonUp ? '先別急著進門，月亮在草屋上方，抬頭看看' : '再等一下，天快黑了', 4500); }
+        } else held = false;
       };
       hooks.add(h);
     });
@@ -1179,7 +1208,8 @@ const BEHAVIOURS = {
     if (!nightSound) setScape('night', 4);
     // make sure both lines were seen, even by someone who took the main path or never looked up
     if (!state.collected.has('m5')) verse('m5', 'arrival');
-    if (!state.collected.has('m4')) { controls.faceTo(controls.st.x + moonDir.x * 10, 1.6 + moonDir.y * 10, controls.st.z + moonDir.z * 10, 2.0); verse('m4', 'arrival'); await wait(2200); }
+    if (!state.collected.has('m4')) { controls.faceTo(controls.st.x + moonDir.x * 10, 1.6 + moonDir.y * 10, controls.st.z + moonDir.z * 10, 2.0); await wait(1500); verse('m4', 'arrival'); await wait(2200); }
+    skyTarget = null;
     setTarget(null);
     setSteps(STEPS, 4);
     await wait(800);

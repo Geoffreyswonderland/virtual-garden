@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { srand, srange, fbm, TAU } from './util.js';
-import { L, PATHS, NARROW } from './layout.js?v=31';
+import { L, PATHS, NARROW, NARROW_Z0 } from './layout.js?v=32';
 
 /* Real blades rather than picture cards: each instance is a thin curved
    ribbon, shaded dark at the root and light at the tip, swaying in gusts. */
@@ -26,7 +26,7 @@ export function grassDensity(x, z) {
   const { fence } = L;
   if (z > fence.z1 + 0.3 && (Math.abs(x) < 2.0 || Math.abs(z - 13.4) < 1.3)) return 0;   // lanes outside
   if (pathDist(x, z) < 0.62) return 0;
-  if (narrowDist(x, z) < 1.35) return 0;   // the tall grass along the narrow path is built separately
+  if (z < NARROW_Z0 + 0.2 && narrowDist(x, z) < 1.35) return 0;   // the tall grass along the narrow path is built separately
   const y = L.yard;
   if (((x - 0) / 4.2) ** 2 + ((z - (y.z0 + y.z1) / 2 + 2.2) / 3.6) ** 2 < 1) return 0;
   if (inRect(x, z, L.veg, 0.1)) return 0;
@@ -207,7 +207,7 @@ export function buildTallGrass(scene, time) {
     const dx = bx - ax, dz = bz - az, len = Math.hypot(dx, dz);
     const side = (srand() < 0.5 ? -1 : 1) * srange(0.3, 1.35);
     const x = ax + dx * t - dz / len * side, z = az + dz * t + dx / len * side;
-    if (narrowDist(x, z) < 0.3 || pathDist(x, z) < 0.55) continue;
+    if (z > NARROW_Z0 || narrowDist(x, z) < 0.3 || pathDist(x, z) < 0.55) continue;
     if (Math.abs(x - L.hut.x) < L.hut.w / 2 + 0.7 && Math.abs(z - L.hut.z) < L.hut.d / 2 + 0.8) continue;
     q.setFromEuler(new THREE.Euler(srange(-0.15, 0.15), srange(0, TAU), srange(-0.15, 0.15)));
     m.compose(new THREE.Vector3(x, 0, z), q, new THREE.Vector3(srange(0.9, 1.4), srange(0.75, 1.35), 1));

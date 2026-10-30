@@ -22,12 +22,16 @@ export const TIER = {
   high: { dpr: 1.5, shadow: 2048, grass: 110000, samples: 4, rays: 40 },
 };
 
+/* where the moon hangs: ahead of the walk home from the bean field, above the hut's east end,
+   about 42° up — clear of the trees, and of the roof even when standing at the door */
+export const MOON_DIR = [0.12, 0.67, -0.73];
+
 /* ---------- time-of-day presets (linear RGB) ---------- */
 export const ENV = {
   morning: { hz: [0.95, 0.84, 0.7], zn: [0.42, 0.56, 0.74], sunCol: [1, 0.8, 0.58], sunDir: [0.42, 0.2, -0.88], light: [1, 0.83, 0.64], lightI: 2.7, sky: [0.82, 0.86, 0.95], gnd: [0.36, 0.32, 0.22], hemiI: 0.55, fog: [0.86, 0.79, 0.68], fogD: 0.021, exp: 0.9, night: 0, cloud: 1, rays: 1 },
   noon: { hz: [0.8, 0.85, 0.88], zn: [0.24, 0.44, 0.78], sunCol: [1, 0.96, 0.88], sunDir: [0.3, 0.88, -0.36], light: [1, 0.97, 0.9], lightI: 3.2, sky: [0.8, 0.86, 0.95], gnd: [0.38, 0.35, 0.24], hemiI: 0.65, fog: [0.78, 0.83, 0.86], fogD: 0.011, exp: 0.78, night: 0, cloud: 1, rays: 0.25 },
   dusk: { hz: [1, 0.6, 0.34], zn: [0.3, 0.32, 0.5], sunCol: [1, 0.48, 0.18], sunDir: [-0.55, 0.06, -0.83], light: [1, 0.58, 0.32], lightI: 2.4, sky: [0.66, 0.56, 0.64], gnd: [0.3, 0.22, 0.16], hemiI: 0.36, fog: [0.85, 0.56, 0.4], fogD: 0.018, exp: 0.95, night: 0.1, cloud: 0.9, rays: 1.3 },
-  night: { hz: [0.07, 0.09, 0.15], zn: [0.01, 0.018, 0.05], sunCol: [0.75, 0.85, 1], sunDir: [0.22, 0.42, -0.88], light: [0.55, 0.66, 1], lightI: 0.55, sky: [0.4, 0.5, 0.8], gnd: [0.1, 0.1, 0.12], hemiI: 0.17, fog: [0.05, 0.07, 0.12], fogD: 0.022, exp: 1.2, night: 1, cloud: 0.25, rays: 0.35 },
+  night: { hz: [0.07, 0.09, 0.15], zn: [0.01, 0.018, 0.05], sunCol: [0.75, 0.85, 1], sunDir: [0.12, 0.67, -0.73], light: [0.55, 0.66, 1], lightI: 0.55, sky: [0.4, 0.5, 0.8], gnd: [0.1, 0.1, 0.12], hemiI: 0.17, fog: [0.05, 0.07, 0.12], fogD: 0.022, exp: 1.2, night: 1, cloud: 0.25, rays: 0.35 },
 };
 const KEYS = Object.keys(ENV.morning);
 export const blendEnv = (a, b, k) => Object.fromEntries(KEYS.map(key => [key, Array.isArray(a[key]) ? a[key].map((v, i) => lerp(v, b[key][i], k)) : lerp(a[key], b[key], k)]));
@@ -54,11 +58,12 @@ export function createEnv(canvas, tierName) {
   const U = {
     sunDir: { value: new THREE.Vector3(0, 1, 0) }, hz: { value: new THREE.Color() }, zn: { value: new THREE.Color() },
     sunCol: { value: new THREE.Color() }, night: { value: 0 }, cloud: { value: 1 }, uTime: time,
+    moonDir: { value: new THREE.Vector3(...MOON_DIR).normalize() },
   };
   const skyMat = new THREE.ShaderMaterial({
     side: THREE.BackSide, depthWrite: false, fog: false, uniforms: U,
     vertexShader: 'varying vec3 vDir; void main(){ vDir = normalize(position); vec4 p = projectionMatrix * modelViewMatrix * vec4(position, 1.0); gl_Position = p.xyww; }',
-    fragmentShader: `uniform vec3 sunDir, hz, zn, sunCol; uniform float uTime, night, cloud; varying vec3 vDir;
+    fragmentShader: `uniform vec3 sunDir, moonDir, hz, zn, sunCol; uniform float uTime, night, cloud; varying vec3 vDir;
       float qh(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
       float qn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(qh(i),qh(i+vec2(1,0)),f.x),mix(qh(i+vec2(0,1)),qh(i+1.0),f.x),f.y);}
       float qfbm(vec2 p){return qn(p)*.5+qn(p*2.03)*.25+qn(p*4.07)*.13+qn(p*8.1)*.07;}
@@ -70,8 +75,15 @@ export function createEnv(canvas, tierName) {
         // a wide warm haze around the sun, brighter near the horizon
         float hazeK = pow(s, 4.0) * (0.35 + 0.65 * (1.0 - h));
         vec3 day = sunCol * (pow(s, 1400.0) * 30.0 + pow(s, 60.0) * 0.9 + pow(s, 12.0) * 0.35 + hazeK * 0.45);
-        vec3 moon = sunCol * (smoothstep(0.99955, 0.9997, s) * 3.0 + pow(s, 80.0) * 0.18 + pow(s, 10.0) * 0.04);
-        col += mix(day, moon, night);
+        // the moon stays put while the sun sets; it fades in as night falls
+        float m = max(dot(d, moonDir), 0.0);
+        float disc = smoothstep(0.99935, 0.99955, m);            // about 3.5° across: easy to find
+        vec2 mp = (d - moonDir * m).xy * 900.0;
+        float mare = 0.82 + 0.18 * qn(mp * 0.9 + 7.0);            // faint grey patches on the face
+        vec3 moon = vec3(1.0, 0.97, 0.88) * disc * 6.0 * mare
+                  + vec3(0.75, 0.85, 1.0) * (pow(m, 900.0) * 0.9 + pow(m, 90.0) * 0.22 + pow(m, 12.0) * 0.05);
+        float mk = smoothstep(0.2, 0.65, night);
+        col += day * (1.0 - night) + moon * mk;
         vec2 sp = floor(d.xz / (d.y + 0.35) * 280.0);
         float star = step(0.9974, qh(sp)) * smoothstep(0.08, 0.35, d.y) * (0.6 + 0.4 * sin(uTime * 2.0 + qh(sp + 3.0) * 40.0));
         col += vec3(0.85, 0.9, 1.0) * star * night * 1.4;
@@ -79,7 +91,7 @@ export function createEnv(canvas, tierName) {
         float c = smoothstep(0.5, 0.85, qfbm(p));
         vec3 cloudCol = mix(hz * 1.05, sunCol * 1.3, pow(s, 5.0) * 0.7) * cloud;
         cloudCol = mix(cloudCol, vec3(0.06, 0.07, 0.11), night * 0.85);
-        col = mix(col, cloudCol, c * 0.55 * smoothstep(0.02, 0.25, d.y));
+        col = mix(col, cloudCol, c * 0.55 * smoothstep(0.02, 0.25, d.y) * (1.0 - mk * smoothstep(0.994, 0.9992, m)));   // keep the moon clear
         gl_FragColor = vec4(col, 1.0);
       }`,
   });

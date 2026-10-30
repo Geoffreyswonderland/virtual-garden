@@ -35,8 +35,10 @@ export const PATHS = [
   [[2.3, 0.9], [2.2, -1.05]],
 ];
 
-// the narrow way home at dusk, through tall grass past the east fence (道狹草木長)
-export const NARROW = [[7.1, 2.7], [7.7, 0.6], [7.85, -1.6], [7.35, -4.0], [5.6, -5.35], [3.6, -5.85], [1.6, -5.95], [0.7, -5.9]];
+// the short way home at dusk: straight from the bean field (where the hoe stands) to the door,
+// a narrow footpath through grass grown taller than a person (道狹草木長). Tall grass only south of the field.
+export const NARROW = [[5.0, 2.75], [5.1, 0.3], [5.0, -1.2], [4.6, -2.9], [4.3, -4.5], [3.4, -5.85], [1.5, -6.0], [0, -6.1]];
+export const NARROW_Z0 = -1.25;   // north of this the narrow path crosses the field itself (no tall grass)
 
 // where the player should stand for each target (used by "帶我過去")
 export const APPROACH = {
@@ -48,7 +50,7 @@ export const APPROACH = {
   hoe: [7.1, 2.7],
   door: [0, -6.1],
   yard: [0, -4.4],
-  narrow: [7.1, 2.7],
+  narrow: [5.0, -1.2],
 };
 
 export const TREE_RADIUS = 0.45;
