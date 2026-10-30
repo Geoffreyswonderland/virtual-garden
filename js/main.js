@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import { parseCSV } from './csv.js?v=16';
-import { createWorld } from './world/index.js?v=36';
-import { createControls } from './controls.js?v=36';
-import { audioInit, setScape, oneShot, waterSound, toggleSound, chime } from './audio.js?v=36';
-import { L, PATHS, APPROACH, EYE, NARROW, NARROW_Z0, NARROW_Z1 } from './world/layout.js?v=36';
-import { pathDist, narrowDist, grassDensity } from './world/grass.js?v=36';
-import { ENV, MOON_DIR } from './world/env.js?v=36';
+import { createWorld } from './world/index.js?v=37';
+import { createControls } from './controls.js?v=37';
+import { audioInit, setScape, oneShot, waterSound, toggleSound, chime } from './audio.js?v=37';
+import { L, PATHS, APPROACH, EYE, NARROW, NARROW_Z0, NARROW_Z1 } from './world/layout.js?v=37';
+import { pathDist, narrowDist, grassDensity } from './world/grass.js?v=37';
+import { ENV, MOON_DIR } from './world/env.js?v=37';
 
 /* =====================================================================
    STATE AND EVENT LOG
@@ -1300,7 +1300,7 @@ function endingPoem() {
 const PAGE_META = {
   pre_now: { eyebrow: '開始之前', title: '此刻的你', lede: '先記下你現在的狀態，等一下結束時會再問一次同樣的題目。沒有對錯，憑當下的感覺就好。' },
   post_now: { eyebrow: '回到現實之前・1／2', title: '此刻的你', lede: '剛才那一天過完了。下面每一句話，有多符合你現在的感覺？沒有對錯。' },
-  post_place: { eyebrow: '回到現實之前・2／2', title: '剛才的園子', lede: '請回想剛才在園子裡的體驗，下面每一句話有多符合你的感受？「這裡」指的是剛才的園子。' },
+  post_place: { eyebrow: '回到現實之前・2／2', title: '剛才的園子', lede: '請回想剛才在園子裡的體驗，你有多同意下面每一句話？「這裡」指的是剛才的園子和田野。' },
 };
 function questionPages(questions, phase) {
   const pages = [];
@@ -1482,7 +1482,7 @@ function showResult() {
   const f1 = v => (v === null ? '—' : v.toFixed(1));
   const rosPost = scaleMean(q => q.scale === 'ROS' && q.phase === 'post');
   const extra = [['恢復感 ROS（1–7）', f1(rosPost)]];
-  [...new Set(state.questions.filter(q => q.scale === 'PRS').map(q => q.subscale))].forEach(sub => extra.push([`${sub}（PRS 0–6）`, f1(scaleMean(q => q.scale === 'PRS' && q.subscale === sub))]));
+  [...new Set(state.questions.filter(q => q.scale === 'PRS-11').map(q => q.subscale))].forEach(sub => extra.push([`${sub}（PRS-11 1–7）`, f1(scaleMean(q => q.scale === 'PRS-11' && q.subscale === sub))]));
   const lingerMs = Number((state.log.find(e => e.type === 'linger') || {}).value || 0);
   const main = state.poems.filter(p => p.group === 'main'), ex = state.poems.filter(p => p.group === 'explore');
   const got = arr => arr.filter(p => state.collected.has(p.id)).length;
