@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&family=Noto+Serif+TC:wght@600;900&display=swap">
-<link rel="stylesheet" href="css/style.css?v=33">
+<link rel="stylesheet" href="css/style.css?v=34">
 <script type="importmap">
 { "imports": {
   "three": "./lib/three/three.module.js",
@@ -112,11 +112,11 @@
 
 <section id="post" class="overlay" hidden>
   <div class="panel post-card">
-    <p class="eyebrow">回到現實之前</p>
-    <h2>最後幾個問題</h2>
-    <p class="lede">大約半分鐘。沒有對錯，憑當下的感覺就好。</p>
+    <p class="eyebrow" id="post-eyebrow">回到現實之前</p>
+    <h2 id="post-title">最後幾個問題</h2>
+    <p class="lede" id="post-lede"></p>
     <div id="post-qs"></div>
-    <div class="row" style="align-items:center"><button id="post-ok" class="btn-primary" type="button" disabled>完成</button><span id="post-left" class="fine" style="margin:0"></span></div>
+    <div class="row" style="align-items:center"><button id="post-ok" class="btn-primary" type="button" disabled>下一步</button><span id="post-left" class="fine" style="margin:0"></span></div>
   </div>
 </section>
 
@@ -139,10 +139,10 @@
       <button id="download" class="btn-primary" type="button">下載紀錄（CSV）</button>
       <button id="restart" class="btn-ghost" type="button">再體驗一次</button>
     </div>
-    <p class="fine">示意題目改寫自知覺恢復量表的概念，正式研究需使用經驗證的中文版量表。</p>
+    <p class="fine">問卷：恢復結果量表 ROS（Korpela 等，2008）、知覺恢復量表 PRS 四個分量表（Hartig 等，1997）。中文為暫譯，尚未經回譯與信效度檢驗；正式研究請採用已驗證的中文版，或完成翻譯驗證程序。</p>
   </div>
 </section>
 
-<script type="module" src="js/main.js?v=33"></script>
+<script type="module" src="js/main.js?v=34"></script>
 </body>
 </html>

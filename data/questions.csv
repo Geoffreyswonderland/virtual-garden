@@ -1,7 +1,37 @@
-id,phase,text,subscale,min,max,min_label,max_label
-relax_pre,pre,此刻你有多放鬆？,放鬆自評,0,10,完全不放鬆,非常放鬆
-relax_post,post,此刻你有多放鬆？,放鬆自評,0,10,完全不放鬆,非常放鬆
-prs_away,post,剛才的體驗讓我暫時遠離了日常的壓力。,遠離（示意）,0,10,完全不同意,完全同意
-prs_fascination,post,這個庭園裡有吸引我注意的事物。,吸引（示意）,0,10,完全不同意,完全同意
-prs_extent,post,庭園裡的一切彼此協調，像是一個完整的世界。,廣延（示意）,0,10,完全不同意,完全同意
-prs_compatibility,post,在這裡做的事符合我想做的事。,相容（示意）,0,10,完全不同意,完全同意
+id,phase,page,scale,subscale,text,min,max,min_label,max_label,reverse,source
+relax_pre,pre,now,放鬆,放鬆自評,此刻你有多放鬆？,0,10,完全不放鬆,非常放鬆,0,單題即時自評（每段之後重複測量，概念同生態瞬時評量 EMA）
+ros_pre_1,pre,now,ROS,恢復感,我覺得平靜。,1,7,完全不是,完全是,0,"Korpela, Ylén, Tyrväinen & Silvennoinen (2008) Restoration Outcome Scale, Health & Place 14(4)"
+ros_pre_2,pre,now,ROS,恢復感,我對日常的事情有熱情、有活力。,1,7,完全不是,完全是,0,"Korpela, Ylén, Tyrväinen & Silvennoinen (2008) Restoration Outcome Scale, Health & Place 14(4)"
+ros_pre_3,pre,now,ROS,恢復感,我覺得恢復了精神，很放鬆。,1,7,完全不是,完全是,0,"Korpela, Ylén, Tyrväinen & Silvennoinen (2008) Restoration Outcome Scale, Health & Place 14(4)"
+ros_pre_4,pre,now,ROS,恢復感,我能好好專心，頭腦清醒。,1,7,完全不是,完全是,0,"Korpela, Ylén, Tyrväinen & Silvennoinen (2008) Restoration Outcome Scale, Health & Place 14(4)"
+ros_pre_5,pre,now,ROS,恢復感,我能忘掉日常的煩惱。,1,7,完全不是,完全是,0,"Korpela, Ylén, Tyrväinen & Silvennoinen (2008) Restoration Outcome Scale, Health & Place 14(4)"
+ros_pre_6,pre,now,ROS,恢復感,我的思緒很清晰。,1,7,完全不是,完全是,0,"Korpela, Ylén, Tyrväinen & Silvennoinen (2008) Restoration Outcome Scale, Health & Place 14(4)"
+relax_post,post,now,放鬆,放鬆自評,此刻你有多放鬆？,0,10,完全不放鬆,非常放鬆,0,單題即時自評（每段之後重複測量，概念同生態瞬時評量 EMA）
+ros_post_1,post,now,ROS,恢復感,我覺得平靜。,1,7,完全不是,完全是,0,"Korpela, Ylén, Tyrväinen & Silvennoinen (2008) Restoration Outcome Scale, Health & Place 14(4)"
+ros_post_2,post,now,ROS,恢復感,我對日常的事情有熱情、有活力。,1,7,完全不是,完全是,0,"Korpela, Ylén, Tyrväinen & Silvennoinen (2008) Restoration Outcome Scale, Health & Place 14(4)"
+ros_post_3,post,now,ROS,恢復感,我覺得恢復了精神，很放鬆。,1,7,完全不是,完全是,0,"Korpela, Ylén, Tyrväinen & Silvennoinen (2008) Restoration Outcome Scale, Health & Place 14(4)"
+ros_post_4,post,now,ROS,恢復感,我能好好專心，頭腦清醒。,1,7,完全不是,完全是,0,"Korpela, Ylén, Tyrväinen & Silvennoinen (2008) Restoration Outcome Scale, Health & Place 14(4)"
+ros_post_5,post,now,ROS,恢復感,我能忘掉日常的煩惱。,1,7,完全不是,完全是,0,"Korpela, Ylén, Tyrväinen & Silvennoinen (2008) Restoration Outcome Scale, Health & Place 14(4)"
+ros_post_6,post,now,ROS,恢復感,我的思緒很清晰。,1,7,完全不是,完全是,0,"Korpela, Ylén, Tyrväinen & Silvennoinen (2008) Restoration Outcome Scale, Health & Place 14(4)"
+prs_1,post,place,PRS,遠離,待在這裡是一種逃離的體驗。,0,6,完全不符合,完全符合,0,"Hartig, Korpela, Evans & Gärling (1997) Perceived Restorativeness Scale, Scandinavian Housing and Planning Research 14"
+prs_2,post,place,PRS,遠離,在這裡的時光，讓我從日常例行的事務中喘一口氣。,0,6,完全不符合,完全符合,0,"Hartig, Korpela, Evans & Gärling (1997) Perceived Restorativeness Scale, Scandinavian Housing and Planning Research 14"
+prs_3,post,place,PRS,遠離,這是一個可以遠離一切的地方。,0,6,完全不符合,完全符合,0,"Hartig, Korpela, Evans & Gärling (1997) Perceived Restorativeness Scale, Scandinavian Housing and Planning Research 14"
+prs_4,post,place,PRS,遠離,待在這裡，讓我不再一心想著要把事情做完。,0,6,完全不符合,完全符合,0,"Hartig, Korpela, Evans & Gärling (1997) Perceived Restorativeness Scale, Scandinavian Housing and Planning Research 14"
+prs_5,post,place,PRS,遠離,來到這裡，讓我不必再應付那些不想理會、卻一直要我注意的事。,0,6,完全不符合,完全符合,0,"Hartig, Korpela, Evans & Gärling (1997) Perceived Restorativeness Scale, Scandinavian Housing and Planning Research 14"
+prs_6,post,place,PRS,吸引,這個地方有令人著迷的特質。,0,6,完全不符合,完全符合,0,"Hartig, Korpela, Evans & Gärling (1997) Perceived Restorativeness Scale, Scandinavian Housing and Planning Research 14"
+prs_7,post,place,PRS,吸引,我的注意力被許多有趣的事物吸引。,0,6,完全不符合,完全符合,0,"Hartig, Korpela, Evans & Gärling (1997) Perceived Restorativeness Scale, Scandinavian Housing and Planning Research 14"
+prs_8,post,place,PRS,吸引,我想更認識這個地方。,0,6,完全不符合,完全符合,0,"Hartig, Korpela, Evans & Gärling (1997) Perceived Restorativeness Scale, Scandinavian Housing and Planning Research 14"
+prs_9,post,place,PRS,吸引,這裡有很多可以探索、發現的東西。,0,6,完全不符合,完全符合,0,"Hartig, Korpela, Evans & Gärling (1997) Perceived Restorativeness Scale, Scandinavian Housing and Planning Research 14"
+prs_10,post,place,PRS,吸引,我想多花一點時間看看四周的景物。,0,6,完全不符合,完全符合,0,"Hartig, Korpela, Evans & Gärling (1997) Perceived Restorativeness Scale, Scandinavian Housing and Planning Research 14"
+prs_11,post,place,PRS,吸引,這個地方很無聊。,0,6,完全不符合,完全符合,1,"Hartig, Korpela, Evans & Gärling (1997) Perceived Restorativeness Scale, Scandinavian Housing and Planning Research 14"
+prs_12,post,place,PRS,吸引,這個環境很迷人。,0,6,完全不符合,完全符合,0,"Hartig, Korpela, Evans & Gärling (1997) Perceived Restorativeness Scale, Scandinavian Housing and Planning Research 14"
+prs_13,post,place,PRS,吸引,這裡沒有什麼值得看的。,0,6,完全不符合,完全符合,1,"Hartig, Korpela, Evans & Gärling (1997) Perceived Restorativeness Scale, Scandinavian Housing and Planning Research 14"
+prs_14,post,place,PRS,一致,這裡同時發生的事情太多了。,0,6,完全不符合,完全符合,1,"Hartig, Korpela, Evans & Gärling (1997) Perceived Restorativeness Scale, Scandinavian Housing and Planning Research 14"
+prs_15,post,place,PRS,一致,這是一個令人困惑的地方。,0,6,完全不符合,完全符合,1,"Hartig, Korpela, Evans & Gärling (1997) Perceived Restorativeness Scale, Scandinavian Housing and Planning Research 14"
+prs_16,post,place,PRS,一致,這裡有很多讓人分心的東西。,0,6,完全不符合,完全符合,1,"Hartig, Korpela, Evans & Gärling (1997) Perceived Restorativeness Scale, Scandinavian Housing and Planning Research 14"
+prs_17,post,place,PRS,一致,這裡很混亂。,0,6,完全不符合,完全符合,1,"Hartig, Korpela, Evans & Gärling (1997) Perceived Restorativeness Scale, Scandinavian Housing and Planning Research 14"
+prs_18,post,place,PRS,相容,待在這裡很適合我的個性。,0,6,完全不符合,完全符合,0,"Hartig, Korpela, Evans & Gärling (1997) Perceived Restorativeness Scale, Scandinavian Housing and Planning Research 14"
+prs_19,post,place,PRS,相容,我可以在這裡做我喜歡的事。,0,6,完全不符合,完全符合,0,"Hartig, Korpela, Evans & Gärling (1997) Perceived Restorativeness Scale, Scandinavian Housing and Planning Research 14"
+prs_20,post,place,PRS,相容,我覺得我屬於這裡。,0,6,完全不符合,完全符合,0,"Hartig, Korpela, Evans & Gärling (1997) Perceived Restorativeness Scale, Scandinavian Housing and Planning Research 14"
+prs_21,post,place,PRS,相容,我可以找到讓自己樂在其中的方式。,0,6,完全不符合,完全符合,0,"Hartig, Korpela, Evans & Gärling (1997) Perceived Restorativeness Scale, Scandinavian Housing and Planning Research 14"
+prs_22,post,place,PRS,相容,我覺得自己和這個環境融為一體。,0,6,完全不符合,完全符合,0,"Hartig, Korpela, Evans & Gärling (1997) Perceived Restorativeness Scale, Scandinavian Housing and Planning Research 14"

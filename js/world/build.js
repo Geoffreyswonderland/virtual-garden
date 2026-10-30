@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { srand, srange, TAU, tex, surface, std, mesh, cutoutDepth, contactShadow } from './util.js';
-import { L } from './layout.js?v=33';
+import { L } from './layout.js?v=34';
 
 /* Everything made by hand: the thatched hut, the brushwood fence and gate,
    the vegetable bed, the bean field and the tools. */

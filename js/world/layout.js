@@ -28,17 +28,19 @@ export const L = {
 
 // walking network (also painted onto the ground as dirt paths)
 export const PATHS = [
-  [[0, 17], [0, 10], [0.45, 7], [0.2, 4], [-0.4, 1], [-0.5, -2], [0, -4.4], [0, -6.1]],
+  [[0, 17], [0, 10], [0.45, 7], [0.2, 4], [-0.4, 1]],
   [[0.2, 4], [-1.5, 2.3], [-3.4, 1.55], [-4.9, 1.5]],
   [[-0.4, 1], [1.4, 1.0], [2.3, 0.9]],
   [[2.3, 0.9], [2.35, 2.75], [5.0, 2.75], [7.1, 2.7]],
   [[2.3, 0.9], [2.2, -1.05]],
 ];
 
-// the short way home at dusk: straight from the bean field (where the hoe stands) to the door,
-// a narrow footpath through grass grown taller than a person (道狹草木長). Tall grass only south of the field.
-export const NARROW = [[5.0, 2.75], [5.1, 0.3], [5.0, -1.2], [4.6, -2.9], [4.3, -4.5], [3.4, -5.85], [1.5, -6.0], [0, -6.1]];
-export const NARROW_Z0 = -1.25;   // north of this the narrow path crosses the field itself (no tall grass)
+// the last stretch of the one road home, from the crossing in the middle of the garden to the door.
+// Nobody has cut the grass along it: it has grown taller than a person and squeezes the road into a
+// footpath (道狹草木長). It is not a detour; it is the road, narrowed. The yard in front of the door is clear.
+export const NARROW = [[-0.4, 1], [-0.5, -2], [0, -4.4], [0, -6.1]];
+export const NARROW_Z0 = 0.6;    // tall grass only between these two z values
+export const NARROW_Z1 = -3.7;
 
 // where the player should stand for each target (used by "帶我過去")
 export const APPROACH = {
@@ -50,7 +52,7 @@ export const APPROACH = {
   hoe: [7.1, 2.7],
   door: [0, -6.1],
   yard: [0, -4.4],
-  narrow: [5.0, -1.2],
+  narrow: [-0.4, 1],
 };
 
 export const TREE_RADIUS = 0.45;

@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import { parseCSV } from './csv.js?v=16';
-import { createWorld } from './world/index.js?v=33';
-import { createControls } from './controls.js?v=33';
-import { audioInit, setScape, oneShot, waterSound, toggleSound, chime } from './audio.js?v=33';
-import { L, PATHS, APPROACH, EYE, NARROW, NARROW_Z0 } from './world/layout.js?v=33';
-import { pathDist, narrowDist, grassDensity } from './world/grass.js?v=33';
-import { ENV, MOON_DIR } from './world/env.js?v=33';
+import { createWorld } from './world/index.js?v=34';
+import { createControls } from './controls.js?v=34';
+import { audioInit, setScape, oneShot, waterSound, toggleSound, chime } from './audio.js?v=34';
+import { L, PATHS, APPROACH, EYE, NARROW, NARROW_Z0, NARROW_Z1 } from './world/layout.js?v=34';
+import { pathDist, narrowDist, grassDensity } from './world/grass.js?v=34';
+import { ENV, MOON_DIR } from './world/env.js?v=34';
 
 /* =====================================================================
    STATE AND EVENT LOG
@@ -1145,7 +1145,7 @@ const BEHAVIOURS = {
   /* 暮：帶月荷鋤歸，道狹草木長 — shoulder the hoe and take the short footpath home; the moon rises ahead */
   async hoe(a) {
     walkMode(true);
-    const STEPS = ['扛起鋤頭', '走草徑回家', '抬頭望月', '走到家門口'];
+    const STEPS = ['扛起鋤頭', '沿路走回家', '抬頭望月', '走到家門口'];
     const hoeAt = parts.hoe.position.clone().setY(0);
     setTarget(hoeAt.clone().setY(0.8), null);
     target.approach = approachPoint({ pos: hoeAt, reach: 1.6 }) || target.approach;
@@ -1159,7 +1159,7 @@ const BEHAVIOURS = {
     setTarget(door, 'door');
     setTask(a.name, a.task_2);
     setSteps(STEPS, 1);
-    coach('narrow', '回家的路', ['家就在豆田的西南邊，直接往草屋走就好', '田邊有一條窄窄的小徑，兩旁的草比人還高，走過時會被你撥開', '天色會越來越暗，月亮會從草屋上方升起來']);
+    coach('narrow', '回家的路', ['沿著早上來的路往回走，到園子中間的岔路口，轉向草屋', '通往家門的那一段沒人除草，草長得比人還高，把路擠成窄窄一條；走過時會被你撥開', '天色會越來越暗，月亮會從草屋上方升起來']);
     await state.duskReady;
     log('walk_home', a.id, 'start');
     const moonDir = new THREE.Vector3(...MOON_DIR).normalize();
@@ -1174,7 +1174,7 @@ const BEHAVIOURS = {
         const k = Math.min(1, Math.max(0, 1 - (d - ARRIVE) / (d0 - ARRIVE)) / 0.65);
         if (k > kMax + 0.002) { kMax = k; env.mixEnv('dusk', 'night', ease(kMax)); }
         if (kMax > 0.5 && !nightSound) { nightSound = true; setScape('night', 8); log('soundscape', 'night'); }
-        if (!inNarrow && z < NARROW_Z0 && narrowDist(x, z) < 0.8) {
+        if (!inNarrow && z < NARROW_Z0 && z > NARROW_Z1 && narrowDist(x, z) < 0.8) {
           inNarrow = true;
           verse('m5', 'narrow');
           hideCoach();
@@ -1343,31 +1343,74 @@ function endingPoem() {
   });
 }
 
-/** the last questions, all on one calm page */
-function postPage(questions) {
+/** questionnaire pages (before and after the day). Each item is a row of numbered buttons:
+    quicker and calmer than a slider, and every point of the original scale is visible. */
+const PAGE_META = {
+  pre_now: { eyebrow: '開始之前', title: '此刻的你', lede: '先記下你現在的狀態，等一下結束時會再問一次同樣的題目。沒有對錯，憑當下的感覺就好。' },
+  post_now: { eyebrow: '回到現實之前・1／2', title: '此刻的你', lede: '和開始前同樣的題目，請依照現在的感覺回答。' },
+  post_place: { eyebrow: '回到現實之前・2／2', title: '剛才的園子', lede: '請回想剛才在園子裡的體驗，下面每一句話有多符合你的感受？「這裡」指的是剛才的園子。' },
+};
+function questionPages(questions, phase) {
+  const pages = [];
+  for (const q of questions) {
+    let pg = pages.find(x => x.key === q.page);
+    if (!pg) pages.push(pg = { key: q.page, qs: [] });
+    pg.qs.push(q);
+  }
+  return pages.map(pg => ({ ...(PAGE_META[`${phase}_${pg.key}`] || { eyebrow: '', title: '', lede: '' }), qs: pg.qs }));
+}
+async function askPages(questions, phase) {
+  const pages = questionPages(questions, phase);
+  for (const [i, pg] of pages.entries()) { $('#post-ok').textContent = i < pages.length - 1 ? '下一步' : (phase === 'pre' ? '開始' : '完成'); await postPage(pg.qs, pg); }
+}
+function postPage(questions, meta = {}) {
   return new Promise(resolve => {
+    $('#post-eyebrow').textContent = meta.eyebrow || '';
+    $('#post-title').textContent = meta.title || '';
+    $('#post-lede').textContent = meta.lede || '';
     const box = $('#post-qs');
-    box.innerHTML = questions.map((q, i) => `
-      <div class="pq">
-        <p class="rate-q" id="pq${i}">${esc(q.text)}</p>
-        <div class="rate-row"><input type="range" class="untouched" id="pin${i}" min="${q.min}" max="${q.max}" step="1" value="${Math.round((+q.min + +q.max) / 2)}" aria-labelledby="pq${i}"><span class="rate-val" id="pv${i}">—</span></div>
+    const vals = new Map();
+    box.innerHTML = questions.map((q, i) => {
+      const lo = +q.min, hi = +q.max, n = hi - lo + 1;
+      const chips = Array.from({ length: n }, (_, k) => `<button type="button" class="chip" data-i="${i}" data-v="${lo + k}" aria-pressed="false">${lo + k}</button>`).join('');
+      return `<div class="pq" role="group" aria-labelledby="pq${i}">
+        <p class="rate-q" id="pq${i}"><span class="qn">${i + 1}</span>${esc(q.text)}</p>
+        <div class="chips" style="--n:${n}">${chips}</div>
         <div class="rate-labels"><span>${esc(q.min)}　${esc(q.min_label)}</span><span>${esc(q.max_label)}　${esc(q.max)}</span></div>
-      </div>`).join('');
-    const ok = $('#post-ok'), touched = new Set();
-    ok.disabled = true;
-    questions.forEach((q, i) => {
-      const inp = $('#pin' + i), val = $('#pv' + i);
-      const mark = () => { inp.classList.remove('untouched'); val.textContent = inp.value; touched.add(i); ok.disabled = touched.size < questions.length; $('#post-left').textContent = touched.size < questions.length ? `還有 ${questions.length - touched.size} 題` : ''; };
-      ['input', 'pointerdown', 'keydown'].forEach(ev => inp.addEventListener(ev, mark));
-    });
+      </div>`;
+    }).join('');
+    const ok = $('#post-ok');
+    const left = () => { const k = questions.length - vals.size; ok.disabled = k > 0; $('#post-left').textContent = k > 0 ? `還有 ${k} 題` : ''; };
+    box.onclick = e => {
+      const c = e.target.closest('.chip');
+      if (!c) return;
+      const i = +c.dataset.i;
+      vals.set(i, +c.dataset.v);
+      c.parentElement.querySelectorAll('.chip').forEach(x => x.setAttribute('aria-pressed', String(x === c)));
+      c.closest('.pq').classList.add('done');
+      left();
+    };
+    left();
     $('#post-left').textContent = `共 ${questions.length} 題`;
     $('#post').hidden = false;
+    $('#post').scrollTop = 0;
     ok.onclick = () => {
-      questions.forEach((q, i) => log('rating', q.id, $('#pin' + i).value));
+      questions.forEach((q, i) => log('rating', q.id, vals.get(i)));
       $('#post').hidden = true;
       resolve();
     };
   });
+}
+
+/** mean score of a set of items, with reverse-keyed items flipped (min + max − value) */
+function scaleMean(filter) {
+  const vs = state.questions.filter(filter).map(q => {
+    const e = state.log.find(x => x.type === 'rating' && x.id === q.id);
+    if (!e || e.value === undefined || e.value === '') return null;
+    const v = Number(e.value);
+    return q.reverse === '1' ? +q.min + +q.max - v : v;
+  }).filter(v => v !== null);
+  return vs.length ? vs.reduce((a, b) => a + b, 0) / vs.length : null;
 }
 
 /* =====================================================================
@@ -1393,7 +1436,9 @@ async function runSession() {
 
   const pre = state.questions.filter(q => q.phase === 'pre');
   const post = state.questions.filter(q => q.phase === 'post');
-  for (const q of pre) await askRating(q, '開始之前');
+  $('#hud').hidden = true;
+  await askPages(pre, 'pre');
+  $('#hud').hidden = false;
 
   const from = DEBUG ? Number(new URLSearchParams(location.search).get('from') || 0) : 0;
   if (from > 0) { state.gateOpen = true; parts.gate[0].rotation.y = 1.65; parts.gate[1].rotation.y = -1.65; controls.place(0, -5.6, 0, 0); }
@@ -1422,7 +1467,7 @@ async function runSession() {
 
   state.stage = state.actions.length;
   $('#hud').hidden = true;
-  await postPage(post);
+  await askPages(post, 'post');
   log('session_end');
   state.running = false;
   $('#hud').hidden = true;
@@ -1476,10 +1521,11 @@ function showResult() {
   </svg>
   <p class="fine">${state.actions.map((a, i) => `<span style="color:${STAGE_COL[i % 6]}">━ ${esc(a.name)}</span>`).join('　')}</p>`;
 
-  const extra = ratings.filter(e => e.id.startsWith('prs_')).map(e => {
-    const q = state.questions.find(x => x.id === e.id) || {};
-    return [q.subscale || e.id, e.value];
-  });
+  // questionnaire scores: ROS before → after, PRS subscale means (reverse-keyed items flipped)
+  const f1 = v => (v === null ? '—' : v.toFixed(1));
+  const rosPre = scaleMean(q => q.scale === 'ROS' && q.phase === 'pre'), rosPost = scaleMean(q => q.scale === 'ROS' && q.phase === 'post');
+  const extra = [['恢復感 ROS（1–7）', `${f1(rosPre)} → ${f1(rosPost)}`]];
+  [...new Set(state.questions.filter(q => q.scale === 'PRS').map(q => q.subscale))].forEach(sub => extra.push([`${sub}（PRS 0–6）`, f1(scaleMean(q => q.scale === 'PRS' && q.subscale === sub))]));
   const lingerMs = Number((state.log.find(e => e.type === 'linger') || {}).value || 0);
   const main = state.poems.filter(p => p.group === 'main'), ex = state.poems.filter(p => p.group === 'explore');
   const got = arr => arr.filter(p => state.collected.has(p.id)).length;

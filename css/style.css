@@ -111,8 +111,15 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--gold); outl
 .scroll-list li .s-src { font-size: 12.5px; text-align: right; }
 .scroll-list li.got { color: var(--paper); border-color: rgba(210, 183, 126, 0.5); background: rgba(210, 183, 126, 0.08); }
 .scroll-card .btn-primary { margin-top: 16px; }
-.post-card { width: min(100%, 620px); padding: 30px; }
-.post-card .pq { margin: 0 0 14px; }
+.post-card { width: min(100%, 640px); padding: 30px; margin: auto; }
+#post { align-items: flex-start; }
+.post-card .pq { margin: 0 0 18px; padding-left: 2px; transition: opacity .3s; }
+.post-card .pq .qn { display: inline-block; min-width: 1.8em; color: var(--gold); font-size: 14px; }
+.chips { display: grid; grid-template-columns: repeat(var(--n), 1fr); gap: 4px; margin: 4px 0 2px; }
+.chip { min-height: 38px; padding: 0; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.04); color: var(--paper-soft); font: inherit; font-size: 15px; cursor: pointer; transition: background .15s, color .15s, border-color .15s; }
+.chip:hover { border-color: var(--gold); color: var(--paper); }
+.chip[aria-pressed="true"] { background: radial-gradient(circle at 40% 35%, #f6ecd6, #c7b285); color: #1f1a14; border-color: var(--gold); font-weight: 700; }
+.post-card .pq.done .rate-q { color: var(--paper-soft); }
 #post .lede { text-align: left; }
 @media (max-width: 760px) { #verse { right: 50%; transform: translate(50%, -50%); } }
 
