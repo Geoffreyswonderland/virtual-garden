@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import { parseCSV } from './csv.js?v=16';
-import { createWorld } from './world/index.js?v=39';
-import { createControls } from './controls.js?v=39';
-import { audioInit, setScape, oneShot, waterSound, toggleSound, chime } from './audio.js?v=39';
-import { L, PATHS, APPROACH, EYE, NARROW, NARROW_Z0, NARROW_Z1 } from './world/layout.js?v=39';
-import { pathDist, narrowDist, grassDensity } from './world/grass.js?v=39';
-import { ENV, MOON_DIR } from './world/env.js?v=39';
+import { createWorld } from './world/index.js?v=40';
+import { createControls } from './controls.js?v=40';
+import { audioInit, setScape, oneShot, waterSound, toggleSound, chime } from './audio.js?v=40';
+import { L, PATHS, APPROACH, EYE, NARROW, NARROW_Z0, NARROW_Z1 } from './world/layout.js?v=40';
+import { pathDist, narrowDist, grassDensity } from './world/grass.js?v=40';
+import { ENV, MOON_DIR } from './world/env.js?v=40';
 
 /* =====================================================================
    STATE AND EVENT LOG
@@ -1299,7 +1299,7 @@ function endingPoem() {
     quicker and calmer than a slider, and every point of the original scale is visible. */
 const PAGE_META = {
   pre_now: { eyebrow: '開始之前', title: '此刻的你', lede: '先記下你現在的狀態，等一下結束時會再問一次同樣的題目。沒有對錯，憑當下的感覺就好。' },
-  post_now: { eyebrow: '回到現實之前・1／2', title: '此刻的你', lede: '剛才那一天過完了。下面每一句話，有多符合你現在的感覺？沒有對錯。' },
+  post_now: { eyebrow: '回到現實之前・1／2', title: '此刻的你', lede: '剛才那一天過完了。下面每一句話，有多符合你現在的感覺？1＝完全不是，7＝完全是。沒有對錯。' },
   post_place: { eyebrow: '回到現實之前・2／2', title: '剛才的園子', lede: '請回想剛才在園子和田野裡的體驗，問問自己：「這句話有多符合我在那裡的經驗？」0＝完全不符合，6＝相當符合，10＝完全符合。' },
 };
 function questionPages(questions, phase) {
@@ -1374,6 +1374,7 @@ async function runSession() {
   controls.place(L.start[0], L.start[1], 0, -0.04);
   state.log = [];
   state.trail = [];
+  seedTouches = 0;
   state.t0 = performance.now();
   state.running = true;
   log('session_start', W.tier, new Date().toISOString());
@@ -1424,7 +1425,9 @@ async function runSession() {
 
   state.stage = state.actions.length;
   $('#hud').hidden = true;
-  await askPages(post, 'post');
+  const relaxPost = post.find(q => q.id === 'relax_post');
+  if (relaxPost) await askRating(relaxPost, '結束時');
+  await askPages(post.filter(q => q !== relaxPost), 'post');
   log('session_end');
   state.running = false;
   $('#hud').hidden = true;
@@ -1481,14 +1484,19 @@ function showResult() {
   // questionnaire scores: ROS before → after, PRS subscale means (reverse-keyed items flipped)
   const f1 = v => (v === null ? '—' : v.toFixed(1));
   const rosPost = scaleMean(q => q.scale === 'ROS' && q.phase === 'post');
-  const extra = [['恢復感 ROS（1–7）', f1(rosPost)]];
-  [...new Set(state.questions.filter(q => q.scale === 'PRS-11').map(q => q.subscale))].forEach(sub => extra.push([`${sub}（PRS-11 0–10）`, f1(scaleMean(q => q.scale === 'PRS-11' && q.subscale === sub))]));
+  // each card: what it is in plain words, the score out of its maximum, and how to read it
+  const extra = [['恢復感', rosPost === null ? '—' : `${f1(rosPost)}／7`, '6 題平均（1–7）。越高代表結束時越覺得平靜、清醒、恢復了精神']];
+  const SUB = { 吸引: '環境有沒有吸引注意的事物', 遠離: '有沒有離開日常壓力的感覺', 一致: '環境看起來有沒有秩序、整體感', 範圍: '環境是否夠大、可以探索' };
+  [...new Set(state.questions.filter(q => q.scale === 'PRS-11').map(q => q.subscale))].forEach(sub => {
+    const v = scaleMean(q => q.scale === 'PRS-11' && q.subscale === sub);
+    extra.push([`園子的${sub}感`, v === null ? '—' : `${f1(v)}／10`, `${SUB[sub] || ''}（0–10）`]);
+  });
   const lingerMs = Number((state.log.find(e => e.type === 'linger') || {}).value || 0);
   const main = state.poems.filter(p => p.group === 'main'), ex = state.poems.filter(p => p.group === 'explore');
   const got = arr => arr.filter(p => state.collected.has(p.id)).length;
   const sitMs = Number((state.log.find(e => e.type === 'sit_duration') || {}).value || 0);
-  const cards = [...extra, ['走動距離（公尺）', Math.round(walked)], ['月下停留（秒）', Math.round(lingerMs / 1000)], ['窗邊坐了（秒）', Math.round(sitMs / 1000)], ['詩句', `${got(main)}／${main.length}`], ['尋得的詩箋', `${got(ex)}／${ex.length}`], ['使用「帶我過去」', `${state.autoWalks} 次`]];
-  $('#post-scores').innerHTML = cards.map(([k2, v]) => `<div class="score">${esc(k2)}<b>${esc(v)}</b></div>`).join('');
+  const cards = [...extra, ['走動距離', `${Math.round(walked)} 公尺`, '整段體驗走了多遠'], ['走回家', `${Math.round(lingerMs / 1000)} 秒`, '黃昏從豆田走到家門花的時間'], ['窗邊坐了', `${Math.round(sitMs / 1000)} 秒`, '坐下後多久才選擇結束'], ['詩句', `${got(main)}／${main.length}`, '主線詩句出現幾句'], ['尋得的詩箋', `${got(ex)}／${ex.length}`, '自己探索找到的詩箋'], ['誤觸豆苗', `${seedTouches} 次`, '除草時點到豆苗的次數'], ['「帶我過去」', `${state.autoWalks} 次`, '使用自動帶路的次數']];
+  $('#post-scores').innerHTML = cards.map(([k2, v, h]) => `<div class="score">${esc(k2)}<b>${esc(v)}</b>${h ? `<small>${esc(h)}</small>` : ''}</div>`).join('');
   $('#result').hidden = false;
 }
 

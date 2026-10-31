@@ -199,6 +199,7 @@ h2 { margin: 0 0 10px; font-family: var(--serif); font-weight: 900; font-size: 2
 #post-scores { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin-bottom: 16px; }
 .score { padding: 8px 12px; background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(210, 183, 126, 0.25); font-size: 13px; color: var(--paper-soft); }
 .score b { display: block; font-family: var(--serif); font-size: 22px; color: var(--paper); }
+.score small { display: block; margin-top: 2px; font-size: 12px; line-height: 1.5; color: var(--paper-soft); opacity: 0.8; }
 .row { display: flex; gap: 12px; flex-wrap: wrap; }
 
 /* ---------- small screens ---------- */
