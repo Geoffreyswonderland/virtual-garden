@@ -191,6 +191,15 @@ h2 { margin: 0 0 10px; font-family: var(--serif); font-weight: 900; font-size: 2
 .error { color: #f0a08f; font-size: 14px; }
 .fine { margin: 10px 0 0; font-size: 13px; color: var(--paper-soft); text-align: left; }
 .help-card { width: min(100%, 520px); padding: 32px; }
+#intro { align-items: flex-start; }
+.intro-card { width: min(100%, 640px); padding: 30px 32px; margin: auto; text-align: left; }
+.intro-card h3 { margin: 18px 0 6px; font-family: var(--serif); font-size: 18px; color: var(--gold); letter-spacing: 0.08em; }
+.intro-card p { margin: 0 0 8px; color: var(--paper-soft); }
+.intro-card p b, .intro-card li b { color: var(--paper); }
+.intro-card .facts { margin-bottom: 4px; }
+.intro-course { font-size: 14px; letter-spacing: 0.06em; }
+.consent { display: flex; gap: 10px; align-items: center; margin: 18px 0 14px; padding: 10px 12px; border: 1px solid var(--line); cursor: pointer; color: var(--paper); }
+.consent input { width: 20px; height: 20px; accent-color: #c7b285; }
 .result-card { width: min(100%, 980px); padding: 32px; margin: auto; }
 .result-grid { display: grid; grid-template-columns: 1.6fr 1fr; gap: 18px; margin: 10px 0 14px; }
 .result-grid figure { margin: 0; padding: 12px; background: rgba(0, 0, 0, 0.2); border: 1px solid rgba(210, 183, 126, 0.25); }

@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import { parseCSV } from './csv.js?v=16';
-import { createWorld } from './world/index.js?v=41';
-import { createControls } from './controls.js?v=41';
-import { audioInit, setScape, oneShot, waterSound, toggleSound, chime } from './audio.js?v=41';
-import { L, PATHS, APPROACH, EYE, NARROW, NARROW_Z0, NARROW_Z1 } from './world/layout.js?v=41';
-import { pathDist, narrowDist, grassDensity } from './world/grass.js?v=41';
-import { ENV, MOON_DIR } from './world/env.js?v=41';
+import { createWorld } from './world/index.js?v=42';
+import { createControls } from './controls.js?v=42';
+import { audioInit, setScape, oneShot, waterSound, toggleSound, chime } from './audio.js?v=42';
+import { L, PATHS, APPROACH, EYE, NARROW, NARROW_Z0, NARROW_Z1 } from './world/layout.js?v=42';
+import { pathDist, narrowDist, grassDensity } from './world/grass.js?v=42';
+import { ENV, MOON_DIR } from './world/env.js?v=42';
 
 /* =====================================================================
    STATE AND EVENT LOG
@@ -1392,6 +1392,7 @@ async function runSession() {
   state.t0 = performance.now();
   state.running = true;
   log('session_start', W.tier, new Date().toISOString());
+  if (state.consentAt) log('consent', 'intro', state.consentAt);
   log('soundscape', 'city');
   state.collected = new Map();
   $('#hud').hidden = false;
@@ -1533,10 +1534,19 @@ function downloadCSV() {
    ===================================================================== */
 $('#download').addEventListener('click', downloadCSV);
 $('#restart').addEventListener('click', () => location.reload());
+// title → research information (read, tick, start) → the day
 $('#start').addEventListener('click', () => {
+  $('#title').hidden = true;
+  $('#intro').hidden = false;
+  $('#intro').scrollTop = 0;
+});
+$('#intro-agree').addEventListener('change', e => { $('#intro-ok').disabled = !e.target.checked; });
+$('#intro-back').addEventListener('click', () => { $('#intro').hidden = true; $('#title').hidden = false; });
+$('#intro-ok').addEventListener('click', () => {
+  state.consentAt = new Date().toISOString();
+  $('#intro').hidden = true;
   audioInit();
   setScape('city', 0.1);
-  $('#title').hidden = true;
   runSession();
 });
 
