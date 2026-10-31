@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import { parseCSV } from './csv.js?v=16';
-import { createWorld } from './world/index.js?v=43';
-import { createControls } from './controls.js?v=43';
-import { audioInit, setScape, oneShot, waterSound, toggleSound, chime } from './audio.js?v=43';
-import { L, PATHS, APPROACH, EYE, NARROW, NARROW_Z0, NARROW_Z1 } from './world/layout.js?v=43';
-import { pathDist, narrowDist, grassDensity } from './world/grass.js?v=43';
-import { ENV, MOON_DIR } from './world/env.js?v=43';
+import { createWorld } from './world/index.js?v=44';
+import { createControls } from './controls.js?v=44';
+import { audioInit, setScape, oneShot, waterSound, toggleSound, chime } from './audio.js?v=44';
+import { L, PATHS, APPROACH, EYE, NARROW, NARROW_Z0, NARROW_Z1 } from './world/layout.js?v=44';
+import { pathDist, narrowDist, grassDensity } from './world/grass.js?v=44';
+import { ENV, MOON_DIR } from './world/env.js?v=44';
 
 /* =====================================================================
    STATE AND EVENT LOG
@@ -1313,7 +1313,7 @@ function endingPoem() {
     quicker and calmer than a slider, and every point of the original scale is visible. */
 const PAGE_META = {
   pre_now: { eyebrow: '開始之前', title: '此刻的你', lede: '先記下你現在的狀態，等一下結束時會再問一次同樣的題目。沒有對錯，憑當下的感覺就好。' },
-  post_now: { eyebrow: '回到現實之前・1／2', title: '此刻的你', lede: '剛才那一天過完了。下面每一句話，有多符合你現在的感覺？1＝完全不是，7＝完全是。沒有對錯。' },
+  post_now: { eyebrow: '回到現實之前・1／2', title: '剛才那一天', lede: '「這裡」指剛才的園子和田野。下面每一句話，有多符合你的感受？1＝完全不符合，7＝完全符合。沒有對錯。' },
   post_place: { eyebrow: '回到現實之前・2／2', title: '剛才的園子', lede: '請回想剛才在園子和田野裡的體驗，問問自己：「這句話有多符合我在那裡的經驗？」0＝完全不符合，6＝相當符合，10＝完全符合。' },
 };
 function questionPages(questions, phase) {
@@ -1500,7 +1500,7 @@ function showResult() {
   const f1 = v => (v === null ? '—' : v.toFixed(1));
   const rosPost = scaleMean(q => q.scale === 'ROS' && q.phase === 'post');
   // each card: what it is in plain words, the score out of its maximum, and how to read it
-  const extra = [['恢復感', rosPost === null ? '—' : `${f1(rosPost)}／7`, '6 題平均（1–7）。越高代表結束時越覺得平靜、清醒、恢復了精神']];
+  const extra = [['恢復感', rosPost === null ? '—' : `${f1(rosPost)}／7`, '6 題平均（1–7）。越高代表這段體驗之後越覺得平靜、專注、思緒清楚']];
   const SUB = { 吸引: '環境有沒有吸引注意的事物', 遠離: '有沒有離開日常壓力的感覺', 一致: '環境看起來有沒有秩序、整體感', 範圍: '環境是否夠大、可以探索' };
   [...new Set(state.questions.filter(q => q.scale === 'PRS-11').map(q => q.subscale))].forEach(sub => {
     const v = scaleMean(q => q.scale === 'PRS-11' && q.subscale === sub);

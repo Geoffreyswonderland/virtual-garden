@@ -1,12 +1,12 @@
 id,phase,page,scale,subscale,text,min,max,min_label,max_label,reverse,source
 relax_pre,pre,now,放鬆,放鬆自評,此刻你有多放鬆？,0,10,完全不放鬆,非常放鬆,0,單題即時自評（每段之後重複測量，概念同生態瞬時評量 EMA）
 relax_post,post,now,放鬆,放鬆自評,此刻你有多放鬆？,0,10,完全不放鬆,非常放鬆,0,單題即時自評（每段之後重複測量，概念同生態瞬時評量 EMA）
-ros_post_1,post,now,ROS,恢復感,我覺得平靜。,1,7,完全不是,完全是,0,"Korpela, Ylén, Tyrväinen & Silvennoinen (2008) Restoration Outcome Scale, Health & Place 14(4)"
-ros_post_2,post,now,ROS,恢復感,我對日常的事情有熱情、有活力。,1,7,完全不是,完全是,0,"Korpela, Ylén, Tyrväinen & Silvennoinen (2008) Restoration Outcome Scale, Health & Place 14(4)"
-ros_post_3,post,now,ROS,恢復感,我覺得恢復了精神，很放鬆。,1,7,完全不是,完全是,0,"Korpela, Ylén, Tyrväinen & Silvennoinen (2008) Restoration Outcome Scale, Health & Place 14(4)"
-ros_post_4,post,now,ROS,恢復感,我能好好專心，頭腦清醒。,1,7,完全不是,完全是,0,"Korpela, Ylén, Tyrväinen & Silvennoinen (2008) Restoration Outcome Scale, Health & Place 14(4)"
-ros_post_5,post,now,ROS,恢復感,我能忘掉日常的煩惱。,1,7,完全不是,完全是,0,"Korpela, Ylén, Tyrväinen & Silvennoinen (2008) Restoration Outcome Scale, Health & Place 14(4)"
-ros_post_6,post,now,ROS,恢復感,我的思緒很清晰。,1,7,完全不是,完全是,0,"Korpela, Ylén, Tyrväinen & Silvennoinen (2008) Restoration Outcome Scale, Health & Place 14(4)"
+ros_post_1,post,now,ROS,恢復感,待在這裡之後，我覺得比較平靜。,1,7,完全不符合,完全符合,0,"Korpela, Ylén, Tyrväinen & Silvennoinen (2008) Restoration Outcome Scale, Health & Place 14, 636–652"
+ros_post_2,post,now,ROS,恢復感,來過這裡之後，我覺得恢復了精神、很放鬆。,1,7,完全不符合,完全符合,0,"Korpela, Ylén, Tyrväinen & Silvennoinen (2008) Restoration Outcome Scale, Health & Place 14, 636–652"
+ros_post_3,post,now,ROS,恢復感,從這裡，我得到面對日常事務的新熱情與活力。,1,7,完全不符合,完全符合,0,"Korpela, Ylén, Tyrväinen & Silvennoinen (2008) Restoration Outcome Scale, Health & Place 14, 636–652"
+ros_post_4,post,now,ROS,恢復感,在這裡，我的專注力和清醒程度明顯提高。,1,7,完全不符合,完全符合,0,"Korpela, Ylén, Tyrväinen & Silvennoinen (2008) Restoration Outcome Scale, Health & Place 14, 636–652"
+ros_post_5,post,now,ROS,恢復感,在這裡，我可以忘掉日常的煩惱。,1,7,完全不符合,完全符合,0,"Korpela, Ylén, Tyrväinen & Silvennoinen (2008) Restoration Outcome Scale, Health & Place 14, 636–652"
+ros_post_6,post,now,ROS,恢復感,來這裡，讓我的思緒變得清楚、有條理。,1,7,完全不符合,完全符合,0,"Korpela, Ylén, Tyrväinen & Silvennoinen (2008) Restoration Outcome Scale, Health & Place 14, 636–652"
 prs_1,post,place,PRS-11,吸引,像這樣的地方很迷人。,0,10,完全不符合,完全符合,0,"Pasini, Berto, Brondino, Hall & Ortner (2014) PRS-11, Procedia – Social and Behavioral Sciences 159, 293–297, Appendix A"
 prs_2,post,place,PRS-11,吸引,在像這樣的地方，我的注意力會被許多有趣的事物吸引。,0,10,完全不符合,完全符合,0,"Pasini, Berto, Brondino, Hall & Ortner (2014) PRS-11, Procedia – Social and Behavioral Sciences 159, 293–297, Appendix A"
 prs_3,post,place,PRS-11,吸引,在像這樣的地方，很難覺得無聊。,0,10,完全不符合,完全符合,0,"Pasini, Berto, Brondino, Hall & Ortner (2014) PRS-11, Procedia – Social and Behavioral Sciences 159, 293–297, Appendix A"

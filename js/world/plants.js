@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { srand, srange, TAU, tex, surface, std, cutoutDepth, contactShadow, softDot } from './util.js';
-import { L } from './layout.js?v=43';
+import { L } from './layout.js?v=44';
 
 /* Trees and plants. Branches are tapered tubes grown recursively; crowns
    are leaf cards whose normals point out from the crown centre so the
