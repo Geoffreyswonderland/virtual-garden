@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import { parseCSV } from './csv.js?v=16';
-import { createWorld } from './world/index.js?v=40';
-import { createControls } from './controls.js?v=40';
-import { audioInit, setScape, oneShot, waterSound, toggleSound, chime } from './audio.js?v=40';
-import { L, PATHS, APPROACH, EYE, NARROW, NARROW_Z0, NARROW_Z1 } from './world/layout.js?v=40';
-import { pathDist, narrowDist, grassDensity } from './world/grass.js?v=40';
-import { ENV, MOON_DIR } from './world/env.js?v=40';
+import { createWorld } from './world/index.js?v=41';
+import { createControls } from './controls.js?v=41';
+import { audioInit, setScape, oneShot, waterSound, toggleSound, chime } from './audio.js?v=41';
+import { L, PATHS, APPROACH, EYE, NARROW, NARROW_Z0, NARROW_Z1 } from './world/layout.js?v=41';
+import { pathDist, narrowDist, grassDensity } from './world/grass.js?v=41';
+import { ENV, MOON_DIR } from './world/env.js?v=41';
 
 /* =====================================================================
    STATE AND EVENT LOG
@@ -444,7 +444,20 @@ $('#guide-me').addEventListener('click', async () => {
 let offers = [], near = null, offerResolve = null;
 const raycaster = new THREE.Raycaster();
 const flat = (a, x, z) => Math.hypot(a.x - x, a.z - z);
+// things offered without a mesh of their own (the stool, the door step…) get an invisible, tappable
+// volume over their glowing ring, so tapping the ring works as well as the button
+const autoHits = [], autoHitGeo = new THREE.CylinderGeometry(0.5, 0.5, 1.1, 12), autoHitMat = new THREE.MeshBasicMaterial({ visible: false });
+function clearAutoHits() { autoHits.splice(0).forEach(m => scene.remove(m)); }
 function offer(list) {
+  clearAutoHits();
+  list.forEach(it => {
+    if (it.obj || !it.pos || it.global) return;
+    const m = new THREE.Mesh(autoHitGeo, autoHitMat);
+    m.position.set(it.pos.x, (it.ringY || 0) + 0.5, it.pos.z);
+    scene.add(m);
+    autoHits.push(m);
+    it.obj = m;
+  });
   offers = list;
   return new Promise(r => { offerResolve = r; });
 }
@@ -452,6 +465,7 @@ function use(item) {
   if (!offerResolve) return;
   const r = offerResolve;
   offers = []; near = null; offerResolve = null;
+  clearAutoHits();
   $('#act').hidden = true;
   log('interact', item.id, item.tag ?? '');
   r(item);
@@ -853,7 +867,7 @@ function placeWeed(w, src) {
       carryTap = null;
       hooks.delete(follow);
       controls.st.lookLock = false;
-      offers = []; offerResolve = null; near = null; actEl.hidden = true;
+      offers = []; offerResolve = null; near = null; actEl.hidden = true; clearAutoHits();
       await settleWeed(w, spot);
       setHeld('');
       resolve(`${spot.basket ? 'basket' : 'ground'};${spot.p.x.toFixed(2)};${spot.p.z.toFixed(2)};${how}`);
