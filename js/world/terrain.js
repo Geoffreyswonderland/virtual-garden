@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { tex, fbm, smooth } from './util.js';
-import { L, PATHS, NARROW } from './layout.js?v=42';
+import { L, PATHS, NARROW } from './layout.js?v=43';
 
 /* Ground: one large plane, flat around the homestead and rolling further
    out. Grass, packed earth and tilled soil are blended in the shader from a
