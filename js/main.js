@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import { parseCSV } from './csv.js?v=16';
-import { createWorld } from './world/index.js?v=44';
-import { createControls } from './controls.js?v=44';
-import { audioInit, setScape, oneShot, waterSound, toggleSound, chime } from './audio.js?v=44';
-import { L, PATHS, APPROACH, EYE, NARROW, NARROW_Z0, NARROW_Z1 } from './world/layout.js?v=44';
-import { pathDist, narrowDist, grassDensity } from './world/grass.js?v=44';
-import { ENV, MOON_DIR } from './world/env.js?v=44';
+import { createWorld } from './world/index.js?v=45';
+import { createControls } from './controls.js?v=45';
+import { audioInit, setScape, oneShot, waterSound, toggleSound, chime } from './audio.js?v=45';
+import { L, PATHS, APPROACH, EYE, NARROW, NARROW_Z0, NARROW_Z1 } from './world/layout.js?v=45';
+import { pathDist, narrowDist, grassDensity } from './world/grass.js?v=45';
+import { ENV, MOON_DIR } from './world/env.js?v=45';
 
 /* =====================================================================
    STATE AND EVENT LOG
@@ -1314,7 +1314,7 @@ function endingPoem() {
 const PAGE_META = {
   pre_now: { eyebrow: '開始之前', title: '此刻的你', lede: '先記下你現在的狀態，等一下結束時會再問一次同樣的題目。沒有對錯，憑當下的感覺就好。' },
   post_now: { eyebrow: '回到現實之前・1／2', title: '剛才那一天', lede: '「這裡」指剛才的園子和田野。下面每一句話，有多符合你的感受？1＝完全不符合，7＝完全符合。沒有對錯。' },
-  post_place: { eyebrow: '回到現實之前・2／2', title: '剛才的園子', lede: '請回想剛才在園子和田野裡的體驗，問問自己：「這句話有多符合我在那裡的經驗？」0＝完全不符合，6＝相當符合，10＝完全符合。' },
+  post_place: { eyebrow: '回到現實之前・2／2', title: '剛才的園子', lede: '請回想剛才在園子和田野裡的體驗，「這個空間」指的就是那裡。你有多同意下面每一句話？1＝非常不同意，7＝非常同意。' },
 };
 function questionPages(questions, phase) {
   const pages = [];
@@ -1496,15 +1496,15 @@ function showResult() {
   </svg>
   <p class="fine">${state.actions.map((a, i) => `<span style="color:${STAGE_COL[i % 6]}">━ ${esc(a.name)}</span>`).join('　')}</p>`;
 
-  // questionnaire scores: ROS before → after, PRS subscale means (reverse-keyed items flipped)
+  // questionnaire scores: ROS mean, and the four subscale means of the restorative perception scale (Huang & Li, 2021)
   const f1 = v => (v === null ? '—' : v.toFixed(1));
   const rosPost = scaleMean(q => q.scale === 'ROS' && q.phase === 'post');
   // each card: what it is in plain words, the score out of its maximum, and how to read it
   const extra = [['恢復感', rosPost === null ? '—' : `${f1(rosPost)}／7`, '6 題平均（1–7）。越高代表這段體驗之後越覺得平靜、專注、思緒清楚']];
-  const SUB = { 吸引: '環境有沒有吸引注意的事物', 遠離: '有沒有離開日常壓力的感覺', 一致: '環境看起來有沒有秩序、整體感', 範圍: '環境是否夠大、可以探索' };
-  [...new Set(state.questions.filter(q => q.scale === 'PRS-11').map(q => q.subscale))].forEach(sub => {
-    const v = scaleMean(q => q.scale === 'PRS-11' && q.subscale === sub);
-    extra.push([`園子的${sub}感`, v === null ? '—' : `${f1(v)}／10`, `${SUB[sub] || ''}（0–10）`]);
+  const SUB = { 遠離性: '有沒有離開日常壓力與責任的感覺', 延展性: '環境是否豐富、連貫，像另一個世界', 魅力性: '環境有沒有吸引注意、想探索的事物', 相容性: '環境是否符合自己的個性與想做的事' };
+  [...new Set(state.questions.filter(q => q.scale === '復癒知覺').map(q => q.subscale))].forEach(sub => {
+    const v = scaleMean(q => q.scale === '復癒知覺' && q.subscale === sub);
+    extra.push([`園子的${sub}`, v === null ? '—' : `${f1(v)}／7`, `${SUB[sub] || ''}（1–7）`]);
   });
   const lingerMs = Number((state.log.find(e => e.type === 'linger') || {}).value || 0);
   const main = state.poems.filter(p => p.group === 'main'), ex = state.poems.filter(p => p.group === 'explore');
