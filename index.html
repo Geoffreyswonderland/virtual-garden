@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&family=Noto+Serif+TC:wght@600;900&display=swap">
-<link rel="stylesheet" href="css/style.css?v=45">
+<link rel="stylesheet" href="css/style.css?v=46">
 <script type="importmap">
 { "imports": {
   "three": "./lib/three/three.module.js",
@@ -67,14 +67,14 @@
 
 <section id="title" class="overlay">
   <div class="title-card panel">
-    <div class="seal big" aria-hidden="true">歸</div>
+    <div class="seal big" id="title-seal" aria-hidden="true">歸</div>
     <p class="eyebrow">虛擬園藝活動・研究雛形</p>
-    <h1>歸園田居</h1>
-    <p class="lede">離開城市，推開柴門，過完陶淵明的一天：清晨扛著鋤頭到南山下的豆田除草，午後補種缺苗，帶著月色沿小路走回草屋。每一段結束後，會請你說說此刻的感受。</p>
+    <h1 id="title-h1">歸園田居</h1>
+    <p class="lede" id="title-lede">離開城市，推開柴門，過完陶淵明的一天：清晨扛著鋤頭到南山下的豆田除草，午後補種缺苗，帶著月色沿小路走回草屋。每一段結束後，會請你說說此刻的感受。</p>
     <ul class="facts">
       <li>約 10～15 分鐘・建議戴耳機</li>
       <li>點一下地面就會走過去；也可以用左下角搖桿或鍵盤。點東西就能互動</li>
-      <li>這是展示雛形，紀錄只留在這台裝置上，不會上傳</li>
+      <li id="title-note">這是展示雛形，紀錄只留在這台裝置上，不會上傳</li>
     </ul>
     <p id="load-error" class="error" hidden></p>
     <button id="start" class="btn-primary" type="button" disabled>載入中…</button>
@@ -87,6 +87,7 @@
     <h2>開始之前，請先閱讀</h2>
     <p class="intro-course">115 學年度第一學期・國立中興大學園藝學系造園組・專題討論<br>報告者：陳立亨（國立中興大學園藝學系造園組碩士班一年級）</p>
 
+    <div id="intro-body">
     <h3>背景</h3>
     <p>園藝治療常說能「療癒」，但療癒要怎麼測量？過去的研究多半只在活動<b>之前</b>和<b>之後</b>各填一次問卷，看不到活動<b>進行當中</b>發生了什麼。這份專題討論探討療癒的測量方式，並以這個網頁雛形示範一種補充的做法：在活動過程中持續記錄感受與行為。</p>
 
@@ -111,6 +112,7 @@
       <li>參與完全自願，可以隨時停止，沒有任何影響。</li>
     </ul>
 
+    </div>
     <label class="consent"><input type="checkbox" id="intro-agree"> 我已閱讀以上說明，願意開始體驗</label>
     <div class="row">
       <button id="intro-ok" class="btn-primary" type="button" disabled>開始體驗</button>
@@ -129,7 +131,7 @@
       <li><b>環顧</b>：在畫面上拖曳。</li>
       <li><b>互動</b>：點東西本身（太遠會自動走過去），或走近後點右下角的圓形按鈕。</li>
       <li><b>迷路了</b>：點右上角任務框裡的「帶我過去」。</li>
-      <li><b>詩卷</b>：〈歸園田居〉的每一句，會在做事或走過某處時浮現；右側的「詩卷」可以回頭看。園子裡還藏著幾張詩箋，找不到也沒關係。</li>
+      <li id="help-scroll"><b>詩卷</b>：〈歸園田居〉的每一句，會在做事或走過某處時浮現；右側的「詩卷」可以回頭看。園子裡還藏著幾張詩箋，找不到也沒關係。</li>
     </ul>
     <p class="fine">這個雛形用來展示「過程測量」：傳統研究只在活動前後各問一次，這裡記錄的是活動進行中每一段之後的感受、走動軌跡與停留時間。</p>
     <button id="help-close" class="btn-primary" type="button">回到園子</button>
@@ -181,6 +183,6 @@
   </div>
 </section>
 
-<script type="module" src="js/main.js?v=45"></script>
+<script type="module" src="js/main.js?v=46"></script>
 </body>
 </html>

@@ -119,6 +119,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--gold); outl
 .chip { min-height: 38px; padding: 0; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.04); color: var(--paper-soft); font: inherit; font-size: 15px; cursor: pointer; transition: background .15s, color .15s, border-color .15s; }
 .chip:hover { border-color: var(--gold); color: var(--paper); }
 .chip[aria-pressed="true"] { background: radial-gradient(circle at 40% 35%, #f6ecd6, #c7b285); color: #1f1a14; border-color: var(--gold); font-weight: 700; }
+.chips-text { grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); }
+.chip-text { padding: 6px 8px; font-size: 14px; line-height: 1.3; }
 .post-card .pq.done .rate-q { color: var(--paper-soft); }
 #post .lede { text-align: left; }
 @media (max-width: 760px) { #verse { right: 50%; transform: translate(50%, -50%); } }

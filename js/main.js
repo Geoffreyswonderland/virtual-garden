@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import { parseCSV } from './csv.js?v=16';
-import { createWorld } from './world/index.js?v=45';
-import { createControls } from './controls.js?v=45';
-import { audioInit, setScape, oneShot, waterSound, toggleSound, chime } from './audio.js?v=45';
-import { L, PATHS, APPROACH, EYE, NARROW, NARROW_Z0, NARROW_Z1 } from './world/layout.js?v=45';
-import { pathDist, narrowDist, grassDensity } from './world/grass.js?v=45';
-import { ENV, MOON_DIR } from './world/env.js?v=45';
+import { createWorld } from './world/index.js?v=46';
+import { createControls } from './controls.js?v=46';
+import { audioInit, setScape, oneShot, waterSound, toggleSound, chime } from './audio.js?v=46';
+import { L, PATHS, APPROACH, EYE, NARROW, NARROW_Z0, NARROW_Z1 } from './world/layout.js?v=46';
+import { pathDist, narrowDist, grassDensity } from './world/grass.js?v=46';
+import { ENV, MOON_DIR } from './world/env.js?v=46';
 
 /* =====================================================================
    STATE AND EVENT LOG
@@ -19,12 +19,38 @@ const now = () => Math.round(performance.now() - state.t0);
 const log = (type, id = '', value = '') => state.log.push({ t: now(), type, id, value: String(value) });
 const hooks = new Set();   // per-frame callbacks used by stages
 
+/* =====================================================================
+   MODE AND CONDITION
+   No parameter        → demo: the classroom version, with the poem's framing throughout.
+   ?cond=poem|neutral|none → study mode, that condition.
+   ?study=1            → study mode, condition assigned at random.
+   In study mode the three conditions share one neutral frame (title, information page,
+   narration, stage names, ending); the only difference is the text that appears with each
+   action: the poem's lines (poem), plain descriptions of the action (neutral), or nothing (none).
+   ===================================================================== */
+const URLQ = new URLSearchParams(location.search);
+const CONDS = ['poem', 'neutral', 'none'];
+const STUDY = CONDS.includes(URLQ.get('cond')) || URLQ.has('study');
+const COND = !STUDY ? 'demo' : CONDS.includes(URLQ.get('cond')) ? URLQ.get('cond') : CONDS[Math.floor(Math.random() * CONDS.length)];
+const ASSIGNED = STUDY && !CONDS.includes(URLQ.get('cond')) ? 'random' : 'url';
+const SHOW_TEXT = COND !== 'none';
+
 async function loadData() {
   const get = u => fetch(u, { cache: 'no-store' }).then(r => { if (!r.ok) throw new Error(u); return r.text(); });
   const [a, q, p] = await Promise.all([get('data/actions.csv'), get('data/questions.csv'), get('data/poems.csv')]);
   state.actions = parseCSV(a).sort((x, y) => Number(x.order) - Number(y.order));
-  state.questions = parseCSV(q);
+  state.questions = parseCSV(q).filter(x => {
+    if (x.mode === 'study' && !STUDY) return false;
+    if (x.cond === 'text' && !(COND === 'poem' || COND === 'neutral')) return false;
+    return true;
+  });
   state.poems = parseCSV(p).sort((x, y) => Number(x.order) - Number(y.order));
+  if (STUDY) {
+    // the shared neutral frame: any column ending in _study replaces its base column
+    for (const a2 of state.actions) for (const k of Object.keys(a2)) if (k.endsWith('_study') && a2[k]) a2[k.slice(0, -6)] = a2[k];
+    // the neutral condition: plain descriptions of the action, with no source line
+    if (COND === 'neutral') for (const v of state.poems) { v.text = v.neutral || v.text; v.source = ''; }
+  }
 }
 
 /* =====================================================================
@@ -243,8 +269,9 @@ function verse(id, how = '') {
   const v = state.poems.find(p => p.id === id);
   if (!v) return;
   state.collected.set(id, now());
-  log('verse', id, how);
+  log('verse', id, how);   // logged in every condition: the moment, and where it happened
   updateVerseCount();
+  if (!SHOW_TEXT) return;  // no-text condition: nothing appears on screen
   verseQueue.push(v);
   if (!versePlaying) playVerses();
 }
@@ -253,7 +280,8 @@ async function playVerses() {
   const el = $('#verse');
   while (verseQueue.length) {
     const v = verseQueue.shift();
-    el.innerHTML = `${v.group === 'explore' ? '<p class="v-tag">尋得詩箋</p>' : ''}<div class="v-lines">${v.text.split(/[，,]/).map(l => `<span>${esc(l)}</span>`).join('')}</div><p class="v-src">${esc(v.source)}</p>`;
+    const exTag = STUDY ? '拾得一張紙箋' : '尋得詩箋';
+    el.innerHTML = `${v.group === 'explore' ? `<p class="v-tag">${exTag}</p>` : ''}<div class="v-lines">${v.text.split(/[，,]/).map(l => `<span>${esc(l)}</span>`).join('')}</div>${v.source ? `<p class="v-src">${esc(v.source)}</p>` : ''}`;
     el.hidden = false;
     requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('on')));
     chime();
@@ -351,7 +379,8 @@ async function say(speaker, tag, text, label = '繼續') {
 }
 /** end of a stage: the lines found in it, and one gentle question, on one card */
 function stageCard(a, tag) {
-  const lines = state.poems.filter(p => p.stage === a.id && state.collected.has(p.id));
+  // study mode: the rating alone, so that no condition sees its text a second time
+  const lines = STUDY ? [] : state.poems.filter(p => p.stage === a.id && state.collected.has(p.id));
   return new Promise(resolve => {
     openDialogue('', tag);
     dlgBody.className = 'dlg-body';
@@ -947,7 +976,7 @@ const BEHAVIOURS = {
      south mountain, and weed among the thin bean seedlings until noon */
   async weeds(a) {
     walkMode(true);
-    const STEPS = ['拿起鋤頭', '到南山下的豆田', '拔草'];
+    const STEPS = ['拿起鋤頭', STUDY ? '到山腳下的豆田' : '到南山下的豆田', '拔草'];
     const B = L.beans;
     const inField = (x, z, pad = 0) => Math.abs(x - B.x) < B.w / 2 + pad && Math.abs(z - B.z) < B.d / 2 + pad;
     // 1. the hoe leaning on the woodpile
@@ -964,7 +993,7 @@ const BEHAVIOURS = {
     setTarget(V(B.x, 0.8, B.z + B.d / 2), 'beans');
     setTask(a.name, a.task_2);
     setSteps(STEPS, 1);
-    coach('out', '豆田在哪裡', ['豆田不在院子裡，在屋後柴門外、南山腳下', '從草屋右邊繞到屋後，穿過後面的小門，沿小路往山的方向走', '迷路了就點右上角的「帶我過去」']);
+    coach('out', '豆田在哪裡', [STUDY ? '豆田不在院子裡，在屋後柴門外的山腳下' : '豆田不在院子裡，在屋後柴門外、南山腳下', '從草屋右邊繞到屋後，穿過後面的小門，沿小路往山的方向走', '迷路了就點右上角的「帶我過去」']);
     await new Promise(resolve => {
       const h = () => { if (inField(controls.st.x, controls.st.z, 0.6)) { hooks.delete(h); resolve(); } };
       hooks.add(h);
@@ -1290,14 +1319,22 @@ const BEHAVIOURS = {
 /** the whole poem, line by line; the person decides when the day ends */
 function endingPoem() {
   return new Promise(resolve => {
-    openDialogue('陶淵明', '歸園田居・其三');
-    dlgBody.className = 'dlg-body poem ending';
-    const lines = state.poems.filter(p => p.group === 'main' && p.source.includes('其三'));
-    // in the order of the poem
-    const order = ['m1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8'];
-    const sorted = order.map(id => lines.find(p => p.id === id)).filter(Boolean);
-    const pairs = [];
-    for (let i = 0; i < sorted.length; i += 2) pairs.push(sorted.slice(i, i + 2).map(p => p.text).join('，') + '。');
+    let pairs;
+    if (STUDY) {
+      // study mode: the same quiet ending for every condition, shown for the same length of time
+      openDialogue('', '夜深');
+      dlgBody.className = 'dlg-body poem ending';
+      pairs = ['夜深了，屋裡很安靜。', '想再坐一會兒，', '或是結束今天，', '都由你決定。'];
+    } else {
+      openDialogue('陶淵明', '歸園田居・其三');
+      dlgBody.className = 'dlg-body poem ending';
+      const lines = state.poems.filter(p => p.group === 'main' && p.source.includes('其三'));
+      // in the order of the poem
+      const order = ['m1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8'];
+      const sorted = order.map(id => lines.find(p => p.id === id)).filter(Boolean);
+      pairs = [];
+      for (let i = 0; i < sorted.length; i += 2) pairs.push(sorted.slice(i, i + 2).map(p => p.text).join('，') + '。');
+    }
     dlgBody.innerHTML = `<div class="lines">${pairs.map((l, i) => `<span style="animation-delay:${i * 1.2}s">${esc(l)}</span>`).join('')}</div>`;
     dlgActions.innerHTML = '';
     const stay = button('再坐一會兒', 'btn-ghost');
@@ -1313,8 +1350,11 @@ function endingPoem() {
     quicker and calmer than a slider, and every point of the original scale is visible. */
 const PAGE_META = {
   pre_now: { eyebrow: '開始之前', title: '此刻的你', lede: '先記下你現在的狀態，等一下結束時會再問一次同樣的題目。沒有對錯，憑當下的感覺就好。' },
-  post_now: { eyebrow: '回到現實之前・1／2', title: '剛才那一天', lede: '「這裡」指剛才的園子和田野。下面每一句話，有多符合你的感受？1＝完全不符合，7＝完全符合。沒有對錯。' },
-  post_place: { eyebrow: '回到現實之前・2／2', title: '剛才的園子', lede: '請回想剛才在園子和田野裡的體驗，「這個空間」指的就是那裡。你有多同意下面每一句話？1＝非常不同意，7＝非常同意。' },
+  post_now: { eyebrow: '回到現實之前', title: '剛才那一天', lede: '「這裡」指剛才的園子和田野。下面每一句話，有多符合你的感受？1＝完全不符合，7＝完全符合。沒有對錯。' },
+  post_place: { eyebrow: '回到現實之前', title: '剛才的園子', lede: '請回想剛才在園子和田野裡的體驗，「這個空間」指的就是那裡。你有多同意下面每一句話？1＝非常不同意，7＝非常同意。' },
+  post_presence: { eyebrow: '回到現實之前', title: '身在其中的感覺', lede: '這幾題想了解你在剛才的虛擬園子裡，有多大程度覺得自己「就在那裡」。請依每題下方的說明作答，沒有對錯。' },
+  post_text: { eyebrow: '回到現實之前', title: '關於文字與詩詞', lede: '請依每題下方的說明作答。' },
+  post_about: { eyebrow: '最後', title: '關於你', lede: '只用來描述參與者的整體組成，不會用來辨識個人。' },
 };
 function questionPages(questions, phase) {
   const pages = [];
@@ -1327,7 +1367,11 @@ function questionPages(questions, phase) {
 }
 async function askPages(questions, phase) {
   const pages = questionPages(questions, phase);
-  for (const [i, pg] of pages.entries()) { $('#post-ok').textContent = i < pages.length - 1 ? '下一步' : (phase === 'pre' ? '開始' : '完成'); await postPage(pg.qs, pg); }
+  for (const [i, pg] of pages.entries()) {
+    $('#post-ok').textContent = i < pages.length - 1 ? '下一步' : (phase === 'pre' ? '開始' : '完成');
+    const eyebrow = pages.length > 1 && pg.eyebrow ? `${pg.eyebrow}・${i + 1}／${pages.length}` : pg.eyebrow;
+    await postPage(pg.qs, { ...pg, eyebrow });
+  }
 }
 function postPage(questions, meta = {}) {
   return new Promise(resolve => {
@@ -1337,12 +1381,14 @@ function postPage(questions, meta = {}) {
     const box = $('#post-qs');
     const vals = new Map();
     box.innerHTML = questions.map((q, i) => {
-      const lo = +q.min, hi = +q.max, n = hi - lo + 1;
-      const chips = Array.from({ length: n }, (_, k) => `<button type="button" class="chip" data-i="${i}" data-v="${lo + k}" aria-pressed="false">${lo + k}</button>`).join('');
+      // a choice item (options separated by |) is stored as its 1-based position
+      const opts = q.options ? q.options.split('|') : null;
+      const lo = opts ? 1 : +q.min, hi = opts ? opts.length : +q.max, n = hi - lo + 1;
+      const chips = Array.from({ length: n }, (_, k) => `<button type="button" class="chip${opts ? ' chip-text' : ''}" data-i="${i}" data-v="${lo + k}" aria-pressed="false">${esc(opts ? opts[k] : String(lo + k))}</button>`).join('');
       return `<div class="pq" role="group" aria-labelledby="pq${i}">
         <p class="rate-q" id="pq${i}"><span class="qn">${i + 1}</span>${esc(q.text)}</p>
-        <div class="chips" style="--n:${n}">${chips}</div>
-        <div class="rate-labels"><span>${esc(q.min)}　${esc(q.min_label)}</span><span>${esc(q.max_label)}　${esc(q.max)}</span></div>
+        <div class="chips${opts ? ' chips-text' : ''}" style="--n:${n}">${chips}</div>
+        ${opts ? '' : `<div class="rate-labels"><span>${esc(q.min)}　${esc(q.min_label)}</span><span>${esc(q.max_label)}　${esc(q.max)}</span></div>`}
       </div>`;
     }).join('');
     const ok = $('#post-ok');
@@ -1392,6 +1438,7 @@ async function runSession() {
   state.t0 = performance.now();
   state.running = true;
   log('session_start', W.tier, new Date().toISOString());
+  log('condition', COND, ASSIGNED);
   if (state.consentAt) log('consent', 'intro', state.consentAt);
   log('soundscape', 'city');
   state.collected = new Map();
@@ -1510,7 +1557,15 @@ function showResult() {
   const main = state.poems.filter(p => p.group === 'main'), ex = state.poems.filter(p => p.group === 'explore');
   const got = arr => arr.filter(p => state.collected.has(p.id)).length;
   const sitMs = Number((state.log.find(e => e.type === 'sit_duration') || {}).value || 0);
-  const cards = [...extra, ['走動距離', `${Math.round(walked)} 公尺`, '整段體驗走了多遠'], ['走回家', `${Math.round(lingerMs / 1000)} 秒`, '黃昏從豆田走到家門花的時間'], ['窗邊坐了', `${Math.round(sitMs / 1000)} 秒`, '坐下後多久才選擇結束'], ['詩句', `${got(main)}／${main.length}`, '主線詩句出現幾句'], ['尋得的詩箋', `${got(ex)}／${ex.length}`, '自己探索找到的詩箋'], ['誤觸豆苗', `${seedTouches} 次`, '除草時點到豆苗的次數'], ['「帶我過去」', `${state.autoWalks} 次`, '使用自動帶路的次數']];
+  const textCards = STUDY
+    // study mode: the same cards in every condition; exploration counted as places visited
+    ? [['到過的角落', `${got(ex)}／${ex.length}`, '自己走到的院子、屋後、東籬等角落']]
+    : [['詩句', `${got(main)}／${main.length}`, '主線詩句出現幾句'], ['尋得的詩箋', `${got(ex)}／${ex.length}`, '自己探索找到的詩箋']];
+  if (STUDY) {
+    const ipq = scaleMean(q => q.scale === 'IPQ');
+    if (ipq !== null) extra.push(['身在其中', `${f1(ipq)}／7`, '臨場感 10 題平均（1–7）。越高代表越覺得自己就在那個園子裡']);
+  }
+  const cards = [...extra, ['走動距離', `${Math.round(walked)} 公尺`, '整段體驗走了多遠'], ['走回家', `${Math.round(lingerMs / 1000)} 秒`, '黃昏從豆田走到家門花的時間'], ['窗邊坐了', `${Math.round(sitMs / 1000)} 秒`, '坐下後多久才選擇結束'], ...textCards, ['誤觸豆苗', `${seedTouches} 次`, '除草時點到豆苗的次數'], ['「帶我過去」', `${state.autoWalks} 次`, '使用自動帶路的次數']];
   $('#post-scores').innerHTML = cards.map(([k2, v, h]) => `<div class="score">${esc(k2)}<b>${esc(v)}</b>${h ? `<small>${esc(h)}</small>` : ''}</div>`).join('');
   $('#result').hidden = false;
 }
@@ -1522,7 +1577,7 @@ function downloadCSV() {
   const a = document.createElement('a');
   const d = new Date(), pad = n => String(n).padStart(2, '0');
   a.href = url;
-  a.download = `virtual-garden-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}.csv`;
+  a.download = `virtual-garden-${COND}-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}.csv`;
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -1549,6 +1604,35 @@ $('#intro-ok').addEventListener('click', () => {
   setScape('city', 0.1);
   runSession();
 });
+
+/* study mode: one neutral frame for all three conditions. Nothing here names the poet or the poem,
+   and the information page does not say which part of the experience is being compared. */
+if (STUDY) {
+  document.title = '田園一日｜虛擬園藝活動';
+  $('#title-seal').textContent = '田';
+  $('#title-h1').textContent = '田園一日';
+  $('#title-lede').textContent = '離開城市，推開柴門，在鄉間過一天：清晨扛著鋤頭到屋後山腳下的豆田除草，午後補種缺苗，傍晚沿著小路走回草屋。每一段結束後，會請你說說此刻的感受。';
+  $('#title-note').textContent = '紀錄只留在這台裝置上，不會上傳';
+  $('#title .eyebrow').textContent = '虛擬園藝活動';
+  $('#intro-body').innerHTML = `
+    <h3>這個研究在做什麼</h3>
+    <p>本研究想了解，在電腦或平板上進行的虛擬園藝活動，對使用者的放鬆與恢復有什麼影響。活動中的設計細節因人而異，畫面上有時會出現一些文字，有時不會；請依自己的步調體驗就好，沒有對錯，也沒有表現好壞之分。</p>
+    <h3>你會做什麼</h3>
+    <ul class="facts">
+      <li>約 15～20 分鐘。開始前回答 1 題，每段活動結束後回答 1 題，結束後再填幾頁短問卷（約 5 分鐘）。</li>
+      <li>建議戴耳機。可以用滑鼠、觸控或鍵盤操作，畫面右側隨時可以點「說明」。</li>
+      <li>畫面在移動，少數人可能會覺得頭暈；如果不舒服，請隨時停止、關掉網頁即可。</li>
+    </ul>
+    <h3>紀錄與隱私</h3>
+    <ul class="facts">
+      <li>不收集姓名或任何可辨識身分的資料；基本資料只問年齡區間與性別。</li>
+      <li>過程中的紀錄只存在這台裝置的瀏覽器裡，<b>不會上傳</b>；結束後由研究人員協助下載紀錄。</li>
+      <li>參與完全自願，可以隨時停止，沒有任何影響。</li>
+    </ul>`;
+  $('#help-scroll').remove();
+  $('#btn-scroll').hidden = true;
+  $('#verse-count').hidden = true;
+}
 
 env.setEnv('morning', 0);
 // a slow drift of the camera behind the title card

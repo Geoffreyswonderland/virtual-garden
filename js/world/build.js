@@ -191,7 +191,13 @@ function hut(scene) {
     const c = document.createElement('canvas'); c.width = 128; c.height = 512; const x = c.getContext('2d');
     x.fillStyle = '#ece2c8'; x.fillRect(0, 0, 128, 512);
     x.fillStyle = '#221a14'; x.font = '84px "Noto Serif TC", "Songti TC", "PMingLiU", serif'; x.textAlign = 'center';
-    ['歸', '去', '來', '兮'].forEach((ch, i) => x.fillText(ch, 64, 110 + i * 105));
+    const q = new URLSearchParams(location.search);
+    if (q.has('study') || q.has('cond')) {
+      // study mode: an ink landscape instead of the four characters, so no condition reads text on the wall
+      x.strokeStyle = '#221a14'; x.lineWidth = 3;
+      [[20, 300, 64, 170, 108, 300], [10, 360, 50, 270, 90, 360], [48, 380, 92, 290, 120, 380]].forEach(([a, b, c, d, e, f]) => { x.beginPath(); x.moveTo(a, b); x.quadraticCurveTo(c, d, e, f); x.stroke(); });
+      x.fillStyle = 'rgba(34,26,20,.18)'; x.fillRect(14, 392, 100, 3);
+    } else ['歸', '去', '來', '兮'].forEach((ch, i) => x.fillText(ch, 64, 110 + i * 105));
     x.fillStyle = '#a3291c'; x.fillRect(84, 462, 22, 22);
     const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
   })();
