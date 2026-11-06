@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import { parseCSV } from './csv.js?v=16';
-import { createWorld } from './world/index.js?v=46';
-import { createControls } from './controls.js?v=46';
-import { audioInit, setScape, oneShot, waterSound, toggleSound, chime } from './audio.js?v=46';
-import { L, PATHS, APPROACH, EYE, NARROW, NARROW_Z0, NARROW_Z1 } from './world/layout.js?v=46';
-import { pathDist, narrowDist, grassDensity } from './world/grass.js?v=46';
-import { ENV, MOON_DIR } from './world/env.js?v=46';
+import { createWorld } from './world/index.js?v=47';
+import { createControls } from './controls.js?v=47';
+import { audioInit, setScape, oneShot, waterSound, toggleSound, chime } from './audio.js?v=47';
+import { L, PATHS, APPROACH, EYE, NARROW, NARROW_Z0, NARROW_Z1 } from './world/layout.js?v=47';
+import { pathDist, narrowDist, grassDensity } from './world/grass.js?v=47';
+import { ENV, MOON_DIR } from './world/env.js?v=47';
 
 /* =====================================================================
    STATE AND EVENT LOG
@@ -1352,7 +1352,7 @@ const PAGE_META = {
   pre_now: { eyebrow: '開始之前', title: '此刻的你', lede: '先記下你現在的狀態，等一下結束時會再問一次同樣的題目。沒有對錯，憑當下的感覺就好。' },
   post_now: { eyebrow: '回到現實之前', title: '剛才那一天', lede: '「這裡」指剛才的園子和田野。下面每一句話，有多符合你的感受？1＝完全不符合，7＝完全符合。沒有對錯。' },
   post_place: { eyebrow: '回到現實之前', title: '剛才的園子', lede: '請回想剛才在園子和田野裡的體驗，「這個空間」指的就是那裡。你有多同意下面每一句話？1＝非常不同意，7＝非常同意。' },
-  post_presence: { eyebrow: '回到現實之前', title: '身在其中的感覺', lede: '這幾題想了解你在剛才的虛擬園子裡，有多大程度覺得自己「就在那裡」。請依每題下方的說明作答，沒有對錯。' },
+  post_presence: { eyebrow: '回到現實之前', title: '身在其中的感覺', lede: '這幾題想了解你在剛才的虛擬園子裡，有多大程度覺得自己「就在那裡」。量尺從 −3 到 +3，兩端的意思每題不同，請看題目下方的說明。沒有對錯。' },
   post_text: { eyebrow: '回到現實之前', title: '關於文字與詩詞', lede: '請依每題下方的說明作答。' },
   post_about: { eyebrow: '最後', title: '關於你', lede: '只用來描述參與者的整體組成，不會用來辨識個人。' },
 };
@@ -1373,6 +1373,8 @@ async function askPages(questions, phase) {
     await postPage(pg.qs, { ...pg, eyebrow });
   }
 }
+// a bipolar scale (−3 … +3) shows its signs; a unipolar one (1 … 7) shows plain numbers
+const sgn = (v, lo) => (lo < 0 ? (v > 0 ? '+' + v : v < 0 ? '−' + -v : '0') : String(v));
 function postPage(questions, meta = {}) {
   return new Promise(resolve => {
     $('#post-eyebrow').textContent = meta.eyebrow || '';
@@ -1384,11 +1386,11 @@ function postPage(questions, meta = {}) {
       // a choice item (options separated by |) is stored as its 1-based position
       const opts = q.options ? q.options.split('|') : null;
       const lo = opts ? 1 : +q.min, hi = opts ? opts.length : +q.max, n = hi - lo + 1;
-      const chips = Array.from({ length: n }, (_, k) => `<button type="button" class="chip${opts ? ' chip-text' : ''}" data-i="${i}" data-v="${lo + k}" aria-pressed="false">${esc(opts ? opts[k] : String(lo + k))}</button>`).join('');
+      const chips = Array.from({ length: n }, (_, k) => `<button type="button" class="chip${opts ? ' chip-text' : ''}" data-i="${i}" data-v="${lo + k}" aria-pressed="false">${esc(opts ? opts[k] : sgn(lo + k, lo))}</button>`).join('');
       return `<div class="pq" role="group" aria-labelledby="pq${i}">
         <p class="rate-q" id="pq${i}"><span class="qn">${i + 1}</span>${esc(q.text)}</p>
         <div class="chips${opts ? ' chips-text' : ''}" style="--n:${n}">${chips}</div>
-        ${opts ? '' : `<div class="rate-labels"><span>${esc(q.min)}　${esc(q.min_label)}</span><span>${esc(q.max_label)}　${esc(q.max)}</span></div>`}
+        ${opts ? '' : `<div class="rate-labels"><span>${esc(sgn(lo, lo))}　${esc(q.min_label)}</span><span>${esc(q.max_label)}　${esc(sgn(hi, lo))}</span></div>`}
       </div>`;
     }).join('');
     const ok = $('#post-ok');
@@ -1563,7 +1565,7 @@ function showResult() {
     : [['詩句', `${got(main)}／${main.length}`, '主線詩句出現幾句'], ['尋得的詩箋', `${got(ex)}／${ex.length}`, '自己探索找到的詩箋']];
   if (STUDY) {
     const ipq = scaleMean(q => q.scale === 'IPQ');
-    if (ipq !== null) extra.push(['身在其中', `${f1(ipq)}／7`, '臨場感 10 題平均（1–7）。越高代表越覺得自己就在那個園子裡']);
+    if (ipq !== null) extra.push(['身在其中', `${ipq >= 0 ? '+' : ''}${f1(ipq)}`, '臨場感 14 題平均（−3～+3）。越高代表越覺得自己就在那個園子裡']);
   }
   const cards = [...extra, ['走動距離', `${Math.round(walked)} 公尺`, '整段體驗走了多遠'], ['走回家', `${Math.round(lingerMs / 1000)} 秒`, '黃昏從豆田走到家門花的時間'], ['窗邊坐了', `${Math.round(sitMs / 1000)} 秒`, '坐下後多久才選擇結束'], ...textCards, ['誤觸豆苗', `${seedTouches} 次`, '除草時點到豆苗的次數'], ['「帶我過去」', `${state.autoWalks} 次`, '使用自動帶路的次數']];
   $('#post-scores').innerHTML = cards.map(([k2, v, h]) => `<div class="score">${esc(k2)}<b>${esc(v)}</b>${h ? `<small>${esc(h)}</small>` : ''}</div>`).join('');
