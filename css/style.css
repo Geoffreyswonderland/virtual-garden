@@ -213,22 +213,80 @@ h2 { margin: 0 0 10px; font-family: var(--serif); font-weight: 900; font-size: 2
 .score small { display: block; margin-top: 2px; font-size: 12px; line-height: 1.5; color: var(--paper-soft); opacity: 0.8; }
 .row { display: flex; gap: 12px; flex-wrap: wrap; }
 
-/* ---------- small screens ---------- */
+/* ---------- while a dialogue or a line of verse is on screen ---------- */
+/* the question (or narration) gets the screen to itself: nothing from the HUD sits on top of it */
+body.dlg-open #task, body.dlg-open #coach, body.dlg-open #act, body.dlg-open #stick, body.dlg-open #progress, body.dlg-open #edge, body.dlg-open #keys-hint { display: none !important; }
+body.dlg-open #menu { opacity: 0.35; pointer-events: none; }
+/* the how-to card steps aside while a line of verse is shown, then comes back */
+body.verse-on #coach { opacity: 0; pointer-events: none; transition: opacity 0.4s; }
+/* a long dialogue scrolls inside its body, so the speaker and stage tags on its edge are never clipped */
+#dlg { max-height: calc(100% - var(--safe-t) - var(--safe-b) - 40px); }
+#dlg .dlg-body { overflow-y: auto; min-height: 0; flex: 0 1 auto; }
+#menu button { min-width: 32px; }
+
+/* ---------- small screens (phones in portrait) ---------- */
 @media (max-width: 760px) {
-  #chapter { left: 40px; min-width: 0; padding: 8px 18px 8px 36px; }
-  #chapter .seal { width: 56px; height: 56px; font-size: 28px; left: -32px; }
-  .chap-title { font-size: 19px; }
-  .chap-step { font-size: 11px; letter-spacing: 0.15em; }
-  .daybar { width: 150px; }
-  #task { top: auto; bottom: calc(var(--safe-b) + 176px); right: 12px; left: auto; width: min(280px, calc(100% - 24px)); padding: 10px 14px 8px; }
-  #task-title { font-size: 17px; }
-  #task-text { font-size: 14px; }
-  #menu button { font-size: 13px; padding: 10px 7px; }
-  #stick { width: 116px; height: 116px; left: 16px; }
-  #act { width: 84px; height: 84px; right: 18px; font-size: 17px; }
-  #dlg { padding: 30px 20px 16px; min-height: 0; }
-  .dlg-body { font-size: 19px; }
+  #chapter { top: calc(var(--safe-t) + 10px); left: 34px; min-width: 0; padding: 6px 14px 6px 30px; }
+  #chapter .seal { width: 46px; height: 46px; font-size: 23px; left: -26px; border-width: 2px; }
+  .chap-title { font-size: 17px; letter-spacing: 0.12em; }
+  .chap-step { font-size: 10.5px; letter-spacing: 0.12em; }
+  .daybar { width: 120px; margin: 5px 0 2px; height: 6px; }
+  .held { font-size: 12px; min-height: 0; }
+  .held:empty { display: none; }
+  /* the task: a slim bar under the chapter card, clear of the middle of the view and of the controls */
+  #task { top: calc(var(--safe-t) + 92px); bottom: auto; left: 12px; right: 50px; width: auto; padding: 8px 12px 6px; }
+  #task .task-head { display: none; }
+  #task-title { font-size: 15px; display: inline; margin-right: 8px; }
+  #task-text { font-size: 14px; display: inline; line-height: 1.55; }
+  #task .task-steps { display: none !important; }
+  #task .link-btn { display: block; font-size: 13px; margin-top: 2px; }
+  #menu button { font-size: 12px; padding: 8px 6px; }
+  #menu { gap: 6px; }
+  #stick { width: 112px; height: 112px; left: 14px; bottom: calc(var(--safe-b) + 22px); }
+  #act { width: 82px; height: 82px; right: 16px; bottom: calc(var(--safe-b) + 34px); font-size: 16px; }
+  /* the how-to card sits above the controls instead of over the task */
+  #coach { top: auto; bottom: calc(var(--safe-b) + 150px); width: calc(100% - 76px); min-width: 0; max-height: 46vh; overflow-y: auto; padding: 12px 14px 10px; }
+  #coach ol { font-size: 14px; line-height: 1.6; }
+  #progress { bottom: calc(var(--safe-b) + 150px); min-width: 220px; }
+  #verse { top: 44%; }
+  #verse .v-lines { font-size: clamp(26px, 3.8vh, 38px); }
+  #toast { top: 26%; white-space: normal; max-width: calc(100% - 32px); text-align: center; }
+  #dlg { padding: 26px 16px 14px; min-height: 0; width: calc(100% - 20px); bottom: calc(var(--safe-b) + 10px); }
+  .dlg-body { font-size: 18px; line-height: 1.75; }
+  .dlg-speaker { left: 16px; font-size: 15px; }
+  .dlg-tag { right: 16px; }
+  .btn-primary, .btn-ghost { padding: 10px 22px; font-size: 17px; }
   h1 { font-size: 40px; }
   .result-grid { grid-template-columns: 1fr; }
+  .post-card, .result-card, .scroll-card { padding: 22px 16px; }
+  .chip { min-height: 40px; font-size: 14px; }
+}
+
+/* ---------- short screens (phones held sideways) ---------- */
+@media (max-height: 500px) {
+  #chapter { top: calc(var(--safe-t) + 8px); left: 34px; min-width: 0; padding: 4px 12px 4px 28px; }
+  #chapter .seal { width: 40px; height: 40px; font-size: 20px; left: -24px; border-width: 2px; }
+  .chap-title { font-size: 15px; }
+  .chap-step { font-size: 10px; letter-spacing: 0.1em; }
+  .daybar { width: 110px; margin: 4px 0 1px; height: 5px; }
+  .held { font-size: 11px; min-height: 0; }
+  .held:empty { display: none; }
+  #task { top: calc(var(--safe-t) + 8px); right: 56px; left: auto; bottom: auto; width: min(300px, 42vw); padding: 6px 12px 4px; }
+  #task .task-head, #task .task-steps { display: none !important; }
+  #task-title { font-size: 14px; display: inline; margin-right: 6px; }
+  #task-text { font-size: 13px; display: inline; }
+  #task .link-btn { display: block; font-size: 12px; }
+  #menu button { font-size: 11px; padding: 6px 5px; }
+  #menu { gap: 4px; }
+  #stick { width: 96px; height: 96px; bottom: calc(var(--safe-b) + 12px); }
+  #act { width: 72px; height: 72px; bottom: calc(var(--safe-b) + 18px); font-size: 14px; }
+  #coach { top: calc(var(--safe-t) + 86px); bottom: auto; left: 12px; transform: none; animation: none; width: min(420px, 46vw); min-width: 0; max-height: calc(100% - 180px); overflow-y: auto; padding: 10px 12px 8px; }
+  #coach ol { font-size: 13px; line-height: 1.5; }
+  #progress { bottom: calc(var(--safe-b) + 100px); }
+  #verse { top: 50%; }
+  #verse .v-lines { font-size: clamp(22px, 6.5vh, 30px); }
+  #dlg { width: min(680px, calc(100% - 120px)); padding: 22px 18px 10px; min-height: 0; bottom: calc(var(--safe-b) + 8px); gap: 6px; }
+  .dlg-body { font-size: 16px; line-height: 1.6; }
+  .btn-primary, .btn-ghost { padding: 6px 20px; font-size: 15px; }
 }
 @media (prefers-reduced-motion: reduce) { #act { animation: none; } .poem .lines span { animation-duration: 0.01s; } }

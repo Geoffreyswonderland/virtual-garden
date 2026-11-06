@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import { parseCSV } from './csv.js?v=16';
-import { createWorld } from './world/index.js?v=47';
-import { createControls } from './controls.js?v=47';
-import { audioInit, setScape, oneShot, waterSound, toggleSound, chime } from './audio.js?v=47';
-import { L, PATHS, APPROACH, EYE, NARROW, NARROW_Z0, NARROW_Z1 } from './world/layout.js?v=47';
-import { pathDist, narrowDist, grassDensity } from './world/grass.js?v=47';
-import { ENV, MOON_DIR } from './world/env.js?v=47';
+import { createWorld } from './world/index.js?v=49';
+import { createControls } from './controls.js?v=49';
+import { audioInit, setScape, oneShot, waterSound, toggleSound, chime } from './audio.js?v=49';
+import { L, PATHS, APPROACH, EYE, NARROW, NARROW_Z0, NARROW_Z1 } from './world/layout.js?v=49';
+import { pathDist, narrowDist, grassDensity } from './world/grass.js?v=49';
+import { ENV, MOON_DIR } from './world/env.js?v=49';
 
 /* =====================================================================
    STATE AND EVENT LOG
@@ -283,12 +283,14 @@ async function playVerses() {
     const exTag = STUDY ? '拾得一張紙箋' : '尋得詩箋';
     el.innerHTML = `${v.group === 'explore' ? `<p class="v-tag">${exTag}</p>` : ''}<div class="v-lines">${v.text.split(/[，,]/).map(l => `<span>${esc(l)}</span>`).join('')}</div>${v.source ? `<p class="v-src">${esc(v.source)}</p>` : ''}`;
     el.hidden = false;
+    document.body.classList.add('verse-on');   // the how-to card steps aside while a line is shown
     requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('on')));
     chime();
     await wait(5600);
     el.classList.remove('on');
     await wait(1000);
     el.hidden = true;
+    document.body.classList.remove('verse-on');
   }
   versePlaying = false;
 }
@@ -345,11 +347,12 @@ function walkMode(on) {
 const dlg = $('#dlg'), dlgBody = $('#dlg-body'), dlgActions = $('#dlg-actions');
 function openDialogue(speaker, tag) {
   walkMode(false);
+  document.body.classList.add('dlg-open');   // hides the task, coach and controls behind the dialogue
   $('#dlg-speaker').textContent = speaker || '';
   $('#dlg-tag').textContent = tag || '';
   dlg.hidden = false;
 }
-function closeDialogue() { dlg.hidden = true; }
+function closeDialogue() { dlg.hidden = true; document.body.classList.remove('dlg-open'); }
 function button(label, cls = 'btn-primary') {
   const b = document.createElement('button');
   b.type = 'button'; b.className = cls; b.textContent = label;
@@ -455,6 +458,7 @@ $('#btn-sound').addEventListener('click', () => {
   $('#btn-sound').setAttribute('aria-pressed', String(on));
   log('sound', '', on ? 'on' : 'off');
 });
+if (!(document.fullscreenEnabled || document.webkitFullscreenEnabled)) $('#btn-full').hidden = true;
 $('#btn-full').addEventListener('click', () => {
   if (document.fullscreenElement) document.exitFullscreen?.();
   else document.documentElement.requestFullscreen?.().catch(() => toast('這個瀏覽器不支援全螢幕'));
@@ -1447,7 +1451,7 @@ async function runSession() {
   $('#hud').hidden = false;
   updateVerseCount();
   setTask('', '');
-  setChapter('序・入園之前', '歸去來', 'morning');
+  setChapter('序・入園之前', STUDY ? '出發' : '歸去來', 'morning');
   setTarget(null);
   walkMode(false);
 
@@ -1612,16 +1616,17 @@ $('#intro-ok').addEventListener('click', () => {
 if (STUDY) {
   document.title = '田園一日｜虛擬園藝活動';
   $('#title-seal').textContent = '田';
+  $('#chapter .seal').textContent = '田';
   $('#title-h1').textContent = '田園一日';
   $('#title-lede').textContent = '離開城市，推開柴門，在鄉間過一天：清晨扛著鋤頭到屋後山腳下的豆田除草，午後補種缺苗，傍晚沿著小路走回草屋。每一段結束後，會請你說說此刻的感受。';
   $('#title-note').textContent = '紀錄只留在這台裝置上，不會上傳';
   $('#title .eyebrow').textContent = '虛擬園藝活動';
   $('#intro-body').innerHTML = `
     <h3>這個研究在做什麼</h3>
-    <p>本研究想了解，在電腦或平板上進行的虛擬園藝活動，對使用者的放鬆與恢復有什麼影響。活動中的設計細節因人而異，畫面上有時會出現一些文字，有時不會；請依自己的步調體驗就好，沒有對錯，也沒有表現好壞之分。</p>
+    <p>本研究想了解，在電腦、平板或手機上進行的虛擬園藝活動，對使用者的放鬆與恢復有什麼影響。活動中的設計細節因人而異，畫面上有時會出現一些文字，有時不會；請依自己的步調體驗就好，沒有對錯，也沒有表現好壞之分。</p>
     <h3>你會做什麼</h3>
     <ul class="facts">
-      <li>約 15～20 分鐘。開始前回答 1 題，每段活動結束後回答 1 題，結束後再填幾頁短問卷（約 5 分鐘）。</li>
+      <li>可以用電腦、平板或手機。約 15～20 分鐘。開始前回答 1 題，每段活動結束後回答 1 題，結束後再填幾頁短問卷（約 5 分鐘）。</li>
       <li>建議戴耳機。可以用滑鼠、觸控或鍵盤操作，畫面右側隨時可以點「說明」。</li>
       <li>畫面在移動，少數人可能會覺得頭暈；如果不舒服，請隨時停止、關掉網頁即可。</li>
     </ul>
