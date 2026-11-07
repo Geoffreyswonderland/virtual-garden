@@ -913,7 +913,7 @@ function placeWeed(w, src) {
       dropRing.visible = false;
       w.scale.setScalar(0.45);
       await hold(w, V(0.3, -0.3, -0.62), [0.3, 0.4, 0.6], 0.4);
-      setTask('理荒穢', '轉身找到竹簍，點竹簍、按右下角「丟進竹簍」或空白鍵，把草丟進去');
+      setTask(STUDY ? '除草' : '理荒穢', '轉身找到竹簍，點竹簍、按右下角「丟進竹簍」或空白鍵，把草丟進去');
       showBasketGuide(true);
       carryTap = (cx, cy) => {
         const sp = spotAt(cx, cy);
@@ -948,7 +948,7 @@ function placeWeed(w, src) {
     // dragging only when the weed itself was pressed on screen; the button and keys keep it in hand
     if (press.down && src === 'touch') {
       controls.st.lookLock = true;
-      setTask('理荒穢', '別放手，拖到竹簍上再放開');
+      setTask(STUDY ? '除草' : '理荒穢', '別放手，拖到竹簍上再放開');
       showBasketGuide(true);
       hooks.add(follow);
     } else handMode();
@@ -1184,7 +1184,7 @@ const BEHAVIOURS = {
      the moon rises ahead, the tall grass along the path wets the hem */
   async hoe(a) {
     walkMode(true);
-    const STEPS = ['荷鋤上肩', '走小路回家', '抬頭望月', '走到家門口'];
+    const STEPS = [STUDY ? '扛起鋤頭' : '荷鋤上肩', '走小路回家', '抬頭望月', '走到家門口'];
     if (parts.hoe.parent !== camera) await hold(parts.hoe, HOE_SHOULDER_P, HOE_SHOULDER_R, 0.6);
     setHeld('鋤頭');
     setSteps(STEPS, 1);
