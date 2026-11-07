@@ -1619,6 +1619,7 @@ if (STUDY) {
   $('#chapter .seal').textContent = '田';
   $('#title-h1').textContent = '田園一日';
   $('#title-lede').textContent = '離開城市，推開柴門，在鄉間過一天：清晨扛著鋤頭到屋後山腳下的豆田除草，午後補種缺苗，傍晚沿著小路走回草屋。每一段結束後，會請你說說此刻的感受。';
+  $('#title-time').textContent = '約 15～20 分鐘（含問卷）・建議戴耳機';
   $('#title-note').textContent = '紀錄只留在這台裝置上，不會上傳';
   $('#title .eyebrow').textContent = '虛擬園藝活動';
   $('#intro-body').innerHTML = `
