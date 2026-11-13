@@ -1460,6 +1460,7 @@ async function runSession() {
   // only one gentle question before the day starts: the baseline for the relaxation curve
   if (pre.length === 1) await askRating(pre[0], '開始之前');
   else if (pre.length) { $('#hud').hidden = true; await askPages(pre, 'pre'); $('#hud').hidden = false; }
+  const tActivity = now();   // activity time starts after the baseline rating
 
   const from = DEBUG ? Number(new URLSearchParams(location.search).get('from') || 0) : 0;
   if (from > 0) { state.gateOpen = true; parts.gate[0].rotation.y = 1.65; parts.gate[1].rotation.y = -1.65; controls.place(0, -5.6, 0, 0); }
@@ -1492,6 +1493,7 @@ async function runSession() {
   }
 
   state.stage = state.actions.length;
+  log('activity_duration', 'main', now() - tActivity);   // self-paced, so it differs by person: a covariate
   $('#hud').hidden = true;
   const relaxPost = post.find(q => q.id === 'relax_post');
   if (relaxPost) await askRating(relaxPost, '結束時');

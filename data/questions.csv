@@ -36,8 +36,10 @@ ipq_real1,post,presence,IPQ,真實感,這個虛擬世界對你來說有多真實
 ipq_real2,post,presence,IPQ,真實感,你在虛擬環境中的經驗，和你在真實世界中的經驗有多一致？,-3,3,不一致,非常一致,0,"igroup 臨場感問卷 IPQ（Schubert, Friedmann & Regenbrecht, 2001；題目與量尺端點依 igroup.org 官方英文版），研究者暫譯，待回譯",study,,
 ipq_real3,post,presence,IPQ,真實感,這個虛擬世界對你來說有多真實？,-3,3,大約和想像中的世界一樣,和真實世界無法區分,0,"igroup 臨場感問卷 IPQ（Schubert, Friedmann & Regenbrecht, 2001；題目與量尺端點依 igroup.org 官方英文版），研究者暫譯，待回譯",study,,
 ipq_real4,post,presence,IPQ,真實感,這個虛擬世界看起來比真實世界更真實。,-3,3,完全不同意,完全同意,0,"igroup 臨場感問卷 IPQ（Schubert, Friedmann & Regenbrecht, 2001；題目與量尺端點依 igroup.org 官方英文版），研究者暫譯，待回譯",study,,
-load,post,text,閱讀負荷,閱讀負荷,理解剛才畫面上出現的文字，需要花多少心力？,1,7,完全不需要,非常需要,0,自編單題，對應認知負荷的競爭假設（H4）,study,text,
-fam,post,text,詩詞熟悉度,熟悉度,你對古典詩詞有多熟悉？,1,7,完全不熟悉,非常熟悉,0,自編單題，調節變項（H5）,study,,
-like,post,text,詩詞喜好,喜好,你有多喜歡古典詩詞？,1,7,完全不喜歡,非常喜歡,0,自編單題，調節變項（H5）,study,,
+meaning,post,text,意義感,操弄檢核,剛才的活動對我來說是有意義的。,1,7,非常不同意,非常同意,0,自編單題，操弄檢核（三組皆填）,study,,
+assoc,post,text,詩詞聯想,操弄檢核,活動中，你是否聯想到某首古典詩詞？,,,,,0,自編單題，操弄檢核（三組皆填；置於熟悉度之前以免題目本身提示）,study,,是|否|不確定
+load,post,text,閱讀負荷,閱讀負荷,理解剛才畫面上出現的文字，需要花多少心力？,1,7,完全不需要,非常需要,0,自編單題，探索性分析（閱讀負荷）,study,text,
+fam,post,text,詩詞熟悉度,熟悉度,你對古典詩詞有多熟悉？,1,7,完全不熟悉,非常熟悉,0,自編單題，探索性分析（詩詞熟悉度與喜好）,study,,
+like,post,text,詩詞喜好,喜好,你有多喜歡古典詩詞？,1,7,完全不喜歡,非常喜歡,0,自編單題，探索性分析（詩詞熟悉度與喜好）,study,,
 age,post,about,基本資料,年齡,你的年齡,,,,,0,基本資料,study,,18–20 歲|21–23 歲|24–26 歲|27–30 歲|31 歲以上
 gender,post,about,基本資料,性別,你的性別,,,,,0,基本資料,study,,男|女|其他或不願透露
