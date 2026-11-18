@@ -1579,6 +1579,7 @@ function showResult() {
 }
 
 function downloadCSV() {
+  state.downloaded = true;
   const rows = [['t_ms', 'type', 'id', 'value'], ...state.log.map(e => [e.t, e.type, e.id, e.value])];
   const csv = '﻿' + rows.map(r => r.map(v => /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : v).join(',')).join('\r\n');
   const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
@@ -1596,6 +1597,13 @@ function downloadCSV() {
    BOOT
    ===================================================================== */
 $('#download').addEventListener('click', downloadCSV);
+// study mode: once the participant has agreed and started, ask before the tab is
+// closed or reloaded until the data has been downloaded (browsers show their own wording)
+window.addEventListener('beforeunload', e => {
+  if (!STUDY || !state.consentAt || state.downloaded) return;
+  e.preventDefault();
+  e.returnValue = '';
+});
 $('#restart').addEventListener('click', () => location.reload());
 // title → research information (read, tick, start) → the day
 $('#start').addEventListener('click', () => {
