@@ -30,8 +30,10 @@ const hooks = new Set();   // per-frame callbacks used by stages
    ===================================================================== */
 const URLQ = new URLSearchParams(location.search);
 const CONDS = ['poem', 'neutral', 'none'];
+// the study compares poem vs neutral; ?study draws only from these two (none stays reachable via ?cond=none)
+const RANDOM_CONDS = ['poem', 'neutral'];
 const STUDY = CONDS.includes(URLQ.get('cond')) || URLQ.has('study');
-const COND = !STUDY ? 'demo' : CONDS.includes(URLQ.get('cond')) ? URLQ.get('cond') : CONDS[Math.floor(Math.random() * CONDS.length)];
+const COND = !STUDY ? 'demo' : CONDS.includes(URLQ.get('cond')) ? URLQ.get('cond') : RANDOM_CONDS[Math.floor(Math.random() * RANDOM_CONDS.length)];
 const ASSIGNED = STUDY && !CONDS.includes(URLQ.get('cond')) ? 'random' : 'url';
 const SHOW_TEXT = COND !== 'none';
 
