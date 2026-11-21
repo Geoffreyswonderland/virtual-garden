@@ -15,8 +15,70 @@
   "three/addons/": "./lib/three/addons/"
 } }
 </script>
+<style>
+/* phone gate: the activity needs a laptop, desktop or tablet screen */
+#phone-gate { display: none; position: fixed; inset: 0; z-index: 2147483647; background: #1a1f1c;
+  color: #f1e9d8; font-family: "LXGW WenKai TC", "Kaiti TC", serif; overflow: auto;
+  padding: calc(24px + env(safe-area-inset-top, 0px)) 22px calc(24px + env(safe-area-inset-bottom, 0px)); box-sizing: border-box;
+  touch-action: none; -webkit-user-select: none; user-select: none; }
+html.is-phone #phone-gate { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+html.is-phone body > *:not(#phone-gate) { visibility: hidden !important; pointer-events: none !important; }
+#phone-gate .pg-seal { flex-shrink: 0; width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; background: #a8392a;
+  color: #f6ead6; font-family: "Noto Serif TC", serif; font-weight: 900; font-size: 32px; margin-bottom: 18px; }
+#phone-gate h1 { margin: 0 0 12px; font-family: "Noto Serif TC", serif; font-size: 22px; letter-spacing: 0.12em; color: #d2b77e; }
+#phone-gate p { margin: 0 0 14px; max-width: 26em; font-size: 16px; line-height: 1.8; color: #bdb4a1; }
+#phone-gate p strong { color: #f1e9d8; }
+#phone-gate .pg-devices { display: flex; gap: 18px; justify-content: center; margin: 4px 0 18px; font-size: 14px; color: #f1e9d8; }
+#phone-gate .pg-devices span::before { content: "✓ "; color: #7fae96; }
+#phone-gate .pg-url { max-width: 100%; word-break: break-all; font-family: ui-monospace, Menlo, monospace; font-size: 13px;
+  padding: 10px 14px; border: 1px solid rgba(205, 178, 122, 0.5); border-radius: 6px; color: #d2b77e; -webkit-user-select: all; user-select: all; }
+</style>
 </head>
 <body>
+<div id="phone-gate" role="alertdialog" aria-live="assertive" aria-labelledby="pg-title">
+  <div class="pg-seal">田</div>
+  <h1 id="pg-title">請改用大螢幕開啟</h1>
+  <p>這個虛擬園藝活動需要在較大的畫面中走動與操作，<strong>手機螢幕太小，無法進行</strong>，轉成橫向也一樣。</p>
+  <p>請改用以下裝置，開啟同一個網址：</p>
+  <div class="pg-devices"><span>筆記型電腦</span><span>桌上型電腦</span><span>平板電腦</span></div>
+  <div class="pg-url" id="pg-url"></div>
+</div>
+<script>
+// Phone detection that survives rotation: uses the device's shorter screen side
+// (not the window), touch-only input, and the browser's own "mobile" flags.
+(function () {
+  var root = document.documentElement;
+  function isPhone() {
+    var ua = navigator.userAgent || '';
+    var uaPhone = /iPhone|iPod|Windows Phone|BlackBerry|IEMobile|Opera Mini/i.test(ua) ||
+                  (/Android/i.test(ua) && /Mobile/i.test(ua));
+    var uaData = navigator.userAgentData && navigator.userAgentData.mobile === true;
+    var shortSide = Math.min(screen.width || 0, screen.height || 0);
+    var mm = window.matchMedia ? function (q) { return window.matchMedia(q).matches; } : function () { return false; };
+    var touchOnly = mm('(pointer: coarse)') && !mm('(any-pointer: fine)');
+    var small = shortSide > 0 && shortSide < 600;
+    return uaPhone || (small && (uaData || touchOnly));
+  }
+  function check() {
+    var phone = isPhone();
+    root.classList.toggle('is-phone', phone);
+    window.__PHONE_BLOCKED = phone;
+    if (phone) { var u = document.getElementById('pg-url'); if (u) u.textContent = location.href; }
+  }
+  check();
+  window.addEventListener('resize', check);
+  window.addEventListener('orientationchange', check);
+  if (screen.orientation && screen.orientation.addEventListener) screen.orientation.addEventListener('change', check);
+  // swallow any input that might reach the page underneath
+  ['touchstart', 'touchmove', 'pointerdown', 'keydown', 'wheel', 'click'].forEach(function (t) {
+    window.addEventListener(t, function (e) {
+      if (root.classList.contains('is-phone') && !(e.target && e.target.closest && e.target.closest('#pg-url'))) {
+        e.stopImmediatePropagation(); if (e.cancelable && t !== 'click') e.preventDefault();
+      }
+    }, { capture: true, passive: false });
+  });
+})();
+</script>
 <canvas id="scene" aria-label="虛擬田園，可以拖曳環顧、用搖桿走動"></canvas>
 
 <div id="hud" hidden>
