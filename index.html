@@ -23,8 +23,8 @@
   touch-action: none; -webkit-user-select: none; user-select: none; }
 html.is-phone #phone-gate { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
 html.is-phone body > *:not(#phone-gate) { visibility: hidden !important; pointer-events: none !important; }
-#phone-gate .pg-seal { flex-shrink: 0; width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; background: #a8392a;
-  color: #f6ead6; font-family: "Noto Serif TC", serif; font-weight: 900; font-size: 32px; margin-bottom: 18px; }
+#phone-gate .pg-badge { flex-shrink: 0; margin-bottom: 16px; padding: 6px 16px; border: 1px solid #d9a441; border-radius: 999px;
+  color: #f2c063; background: rgba(217, 164, 65, 0.12); font-size: 15px; letter-spacing: 0.15em; }
 #phone-gate h1 { margin: 0 0 12px; font-family: "Noto Serif TC", serif; font-size: 22px; letter-spacing: 0.12em; color: #d2b77e; }
 #phone-gate p { margin: 0 0 14px; max-width: 26em; font-size: 16px; line-height: 1.8; color: #bdb4a1; }
 #phone-gate p strong { color: #f1e9d8; }
@@ -36,10 +36,9 @@ html.is-phone body > *:not(#phone-gate) { visibility: hidden !important; pointer
 </head>
 <body>
 <div id="phone-gate" role="alertdialog" aria-live="assertive" aria-labelledby="pg-title">
-  <div class="pg-seal">田</div>
-  <h1 id="pg-title">請改用大螢幕開啟</h1>
-  <p>這個虛擬園藝活動需要在較大的畫面中走動與操作，<strong>手機螢幕太小，無法進行</strong>，轉成橫向也一樣。</p>
-  <p>請改用以下裝置，開啟同一個網址：</p>
+  <div class="pg-badge">⚠ 裝置提醒</div>
+  <h1 id="pg-title">請改以平板或電腦等設備開啟</h1>
+  <p>這個虛擬園藝活動需要在較大的畫面中走動與操作，為了讓您有更好的體驗，請改用以下裝置，開啟同一個網址：</p>
   <div class="pg-devices"><span>筆記型電腦</span><span>桌上型電腦</span><span>平板電腦</span></div>
   <div class="pg-url" id="pg-url"></div>
 </div>
